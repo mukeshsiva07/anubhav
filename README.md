@@ -1,4 +1,4 @@
-# Anubhav (अनुभव)
+# Anubhav
 
 > **"Every expert's experience, saved forever."**
 
