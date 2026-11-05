@@ -73,6 +73,8 @@ export async function POST(req: NextRequest) {
       tags,
       is_safety_critical,
       status = 'pending',
+      thumbnail_url,
+      attachments,
     } = body;
 
     if (!title || !title.trim()) {
@@ -86,6 +88,20 @@ export async function POST(req: NextRequest) {
     // Sanitize rich text HTML strictly before storing in database
     const cleanHtml = sanitizeContent(content_html);
     const plainText = extractPlainText(cleanHtml);
+
+    // Compute thumbnail if not provided
+    let finalThumbnail = thumbnail_url || null;
+    if (!finalThumbnail) {
+      const imgMatch = cleanHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (imgMatch && imgMatch[1]) {
+        finalThumbnail = imgMatch[1];
+      } else if (Array.isArray(attachments)) {
+        const imgAtt = attachments.find(
+          (a) => a && (a.type?.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg)$/i.test(a.name || a.url))
+        );
+        if (imgAtt && imgAtt.url) finalThumbnail = imgAtt.url;
+      }
+    }
 
     // Process tags
     const cleanTags = Array.isArray(tags)
@@ -107,6 +123,8 @@ export async function POST(req: NextRequest) {
       tags: cleanTags,
       is_safety_critical: !!is_safety_critical,
       status: status === 'pending' || status === 'approved' ? status : 'pending',
+      thumbnail_url: finalThumbnail,
+      attachments: Array.isArray(attachments) ? attachments : [],
     });
 
     if (!created) {

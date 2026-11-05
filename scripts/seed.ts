@@ -92,6 +92,18 @@ async function seed() {
   // 2. Organization: Aurobindo Manufacturing
   const orgName = 'Aurobindo Manufacturing';
   const orgPasswordHash = await hash('aurobindo47');
+  const orgDetails = {
+    name: orgName,
+    password_hash: orgPasswordHash,
+    org_code: 'ORG-AUR470',
+    logo_url: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=200&h=200&fit=crop',
+    industry_type: 'Heavy Industrial & Precision Manufacturing',
+    contact_phone: '+91 80 2345 6789',
+    org_email: 'plant.operations@aurobindo-mfg.com',
+    admin_name: 'Aurobindo Plant Operations',
+    address: 'Plot 47, Peenya Industrial Area, Phase II, Bengaluru, Karnataka 560058',
+    description: 'Premier smart manufacturing plant specializing in precision turned shafts, high-tonnage hydraulic forming, and automated production cells.',
+  };
 
   let { data: org } = await supabase
     .from('organizations')
@@ -103,14 +115,14 @@ async function seed() {
     console.log(`Creating organization: ${orgName}`);
     const { data: newOrg, error: orgErr } = await supabase
       .from('organizations')
-      .insert([{ name: orgName, password_hash: orgPasswordHash }])
+      .insert([orgDetails])
       .select('id, name')
       .single();
     if (orgErr) throw orgErr;
     org = newOrg;
   } else {
-    console.log(`Organization "${orgName}" already exists. Updating password hash.`);
-    await supabase.from('organizations').update({ password_hash: orgPasswordHash }).eq('id', org.id);
+    console.log(`Organization "${orgName}" already exists. Updating details.`);
+    await supabase.from('organizations').update(orgDetails).eq('id', org.id);
   }
 
   const orgId = org!.id;
@@ -213,10 +225,12 @@ async function seed() {
       .eq('employee_code', empData.employee_code)
       .maybeSingle();
 
+    const isSenior = empData.experience_years >= 10;
+
     if (!existing) {
       const { data: created, error } = await supabase
         .from('employees')
-        .insert([{ ...empData, org_id: orgId }])
+        .insert([{ ...empData, org_id: orgId, is_senior: isSenior }])
         .select('id, employee_code')
         .single();
       if (error) throw error;
@@ -236,6 +250,7 @@ async function seed() {
           bio: empData.bio,
           avatar_url: empData.avatar_url,
           password_hash: empData.password_hash,
+          is_senior: isSenior,
         })
         .eq('id', existing.id);
     }
@@ -248,6 +263,9 @@ async function seed() {
     {
       name: 'Lathe #3',
       category: 'Turning & Machining',
+      department: 'Machining & Fabrication',
+      status: 'active',
+      gallery: [generateMachineSvg('Lathe #3', 'Turning', '#059669')],
       description: 'Heavy-duty industrial center lathe used for precision shafts, threading, and turning large alloy billets up to 1200mm bed length.',
       image_url: generateMachineSvg('Lathe #3', 'Turning', '#059669'),
       specifications: 'Bed Length: 1500mm | Swing Over Bed: 400mm | Spindle Speed: 45 - 2000 RPM (12 gears) | Motor: 7.5 HP 3-Phase 415V | Chuck: 3-Jaw Self-Centering & 4-Jaw Independent',
@@ -257,6 +275,9 @@ async function seed() {
     {
       name: 'Hydraulic Press #2',
       category: 'Forming & Stamping',
+      department: 'Heavy Machining',
+      status: 'active',
+      gallery: [generateMachineSvg('Hydraulic Press #2', 'Forming', '#2563eb')],
       description: '150-ton four-column hydraulic deep-drawing and blanking press with dual proportional servo valves and safety light curtains.',
       image_url: generateMachineSvg('Hydraulic Press #2', 'Forming', '#2563eb'),
       specifications: 'Max Tonnage: 150 Ton (1470 kN) | Ram Stroke: 450mm | Daylight: 700mm | Table Size: 900x800mm | Working Pressure: 25 MPa | Pump Motor: 15 kW',
@@ -266,6 +287,9 @@ async function seed() {
     {
       name: 'Conveyor Belt A',
       category: 'Material Handling',
+      department: 'Mechatronics & Robotics',
+      status: 'active',
+      gallery: [generateMachineSvg('Conveyor Belt A', 'Conveyors', '#d97706')],
       description: 'Main assembly transfer conveyor connecting machining bay to quality inspection station with modular PVC belt and variable frequency drive.',
       image_url: generateMachineSvg('Conveyor Belt A', 'Conveyors', '#d97706'),
       specifications: 'Belt Width: 600mm | Total Length: 35 meters | Speed Range: 0.1 to 0.8 m/s | Belt Material: 3-ply oil-resistant PVC | Drive: Bonfiglioli helical gearbox + 3.7 kW Siemens VFD',
@@ -275,6 +299,9 @@ async function seed() {
     {
       name: 'CNC Mill #1',
       category: 'CNC Machining',
+      department: 'Machining & Fabrication',
+      status: 'under_maintenance',
+      gallery: [generateMachineSvg('CNC Mill #1', 'CNC Machining', '#7c3aed')],
       description: 'High-speed 3-axis vertical machining center (VMC) equipped with BT40 24-tool carousel and Fanuc 0i-MF Plus controller.',
       image_url: generateMachineSvg('CNC Mill #1', 'CNC Machining', '#7c3aed'),
       specifications: 'Travel: X=850mm, Y=510mm, Z=510mm | Spindle: 12,000 RPM Direct Drive 15kW | Tool Capacity: 24 Arm-type ATC | Controller: Fanuc 0i-MF Plus | Rapid Traverse: 36 m/min',
@@ -284,6 +311,9 @@ async function seed() {
     {
       name: 'Air Compressor #1',
       category: 'Pneumatics & Utilities',
+      department: 'Plant Utilities',
+      status: 'active',
+      gallery: [generateMachineSvg('Air Compressor #1', 'Pneumatics', '#0891b2')],
       description: 'Rotary screw air compressor with integrated refrigerated moisture dryer supplying clean compressed air to the entire fabrication bay.',
       image_url: generateMachineSvg('Air Compressor #1', 'Pneumatics', '#0891b2'),
       specifications: 'Free Air Delivery: 120 CFM @ 7.5 bar (108 psi) | Motor: 22 kW IE3 Premium Efficiency | Air Tank: 1000 Liters vertical receiver | Dryer Dewpoint: +3°C',
@@ -293,6 +323,9 @@ async function seed() {
     {
       name: 'Industrial Boiler #1',
       category: 'Steam & Thermal',
+      department: 'Plant Utilities',
+      status: 'active',
+      gallery: [generateMachineSvg('Industrial Boiler #1', 'Boilers', '#dc2626')],
       description: '3-pass smoke tube horizontal steam boiler providing process steam for parts degreasing and surface coating wash tanks.',
       image_url: generateMachineSvg('Industrial Boiler #1', 'Boilers', '#dc2626'),
       specifications: 'Steam Output: 1500 kg/hr @ 10.5 bar | Fuel: Light Diesel Oil (LDO) / LPG Dual Burner | Water Capacity: 3200 Liters | Burner: Riello Modulating Dual Fuel',
@@ -326,6 +359,9 @@ async function seed() {
         .from('machines')
         .update({
           category: mData.category,
+          department: mData.department,
+          status: mData.status,
+          gallery: mData.gallery,
           description: mData.description,
           image_url: mData.image_url,
           specifications: mData.specifications,
@@ -626,6 +662,8 @@ async function seed() {
       rejection_reason: 'rejection_reason' in entryData ? (entryData as any).rejection_reason : null,
       approved_at: entryData.status === 'approved' ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
+      thumbnail_url: null,
+      attachments: [],
     };
 
     if (!existing) {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Users,
   UserPlus,
@@ -13,11 +13,12 @@ import {
   X,
   Check,
   Copy,
-  Building,
-  Briefcase,
-  Phone,
-  Mail,
   Award,
+  Eye,
+  EyeOff,
+  Wand2,
+  Filter,
+  CheckCircle2,
 } from 'lucide-react';
 import { Employee } from '@/lib/types';
 
@@ -28,9 +29,17 @@ export default function AdminEmployeesPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Sort & Filter state
+  const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'dept' | 'designation' | 'status'>('name_asc');
+  const [deptFilter, setDeptFilter] = useState('all');
+  const [desigFilter, setDesigFilter] = useState('all');
+  const [seniorFilter, setSeniorFilter] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
+
   // Add Employee Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [showAddPassword, setShowAddPassword] = useState(false);
   const [newEmployee, setNewEmployee] = useState({
     full_name: '',
     designation: 'Technician',
@@ -39,9 +48,28 @@ export default function AdminEmployeesPage() {
     phone: '',
     email: '',
     bio: '',
+    password: '',
+    is_senior: false,
   });
 
-  // Temporary password display modal (shown once!)
+  // Change Password Modal (Admin sets a new password, min 8 chars)
+  const [changePasswordModal, setChangePasswordModal] = useState<{
+    open: boolean;
+    employee: Employee | null;
+    newPassword: string;
+    showPass: boolean;
+    saving: boolean;
+    error: string;
+  }>({
+    open: false,
+    employee: null,
+    newPassword: '',
+    showPass: false,
+    saving: false,
+    error: '',
+  });
+
+  // Temporary password display modal (shown once after auto-generated registration)
   const [tempPasswordModal, setTempPasswordModal] = useState<{
     open: boolean;
     name: string;
@@ -61,14 +89,11 @@ export default function AdminEmployeesPage() {
 
   useEffect(() => {
     fetchEmployees();
-  }, [search]);
+  }, []);
 
   async function fetchEmployees() {
     try {
-      const url = search.trim()
-        ? `/api/admin/employees?q=${encodeURIComponent(search.trim())}`
-        : '/api/admin/employees';
-      const res = await fetch(url);
+      const res = await fetch('/api/admin/employees');
       const data = await res.json();
       if (res.ok) {
         setEmployees(data.employees || []);
@@ -82,8 +107,78 @@ export default function AdminEmployeesPage() {
     }
   }
 
+  // Unique options for filters
+  const departments = useMemo(() => {
+    const set = new Set<string>();
+    employees.forEach((e) => {
+      if (e.department) set.add(e.department);
+    });
+    return Array.from(set).sort();
+  }, [employees]);
+
+  const designations = useMemo(() => {
+    const set = new Set<string>();
+    employees.forEach((e) => {
+      if (e.designation) set.add(e.designation);
+    });
+    return Array.from(set).sort();
+  }, [employees]);
+
+  // Filtered & sorted employees
+  const processedEmployees = useMemo(() => {
+    let result = [...employees];
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (e) =>
+          e.full_name.toLowerCase().includes(q) ||
+          e.employee_code.toLowerCase().includes(q) ||
+          e.department.toLowerCase().includes(q) ||
+          e.designation.toLowerCase().includes(q)
+      );
+    }
+
+    if (deptFilter !== 'all') {
+      result = result.filter((e) => e.department === deptFilter);
+    }
+    if (desigFilter !== 'all') {
+      result = result.filter((e) => e.designation === desigFilter);
+    }
+    if (seniorFilter) {
+      result = result.filter((e) => e.is_senior || (e.experience_years && e.experience_years >= 10));
+    }
+    if (statusFilter !== 'all') {
+      result = result.filter((e) => (e.status || 'active') === statusFilter);
+    }
+
+    result.sort((a, b) => {
+      if (sortBy === 'name_asc') return a.full_name.localeCompare(b.full_name);
+      if (sortBy === 'name_desc') return b.full_name.localeCompare(a.full_name);
+      if (sortBy === 'dept') return a.department.localeCompare(b.department);
+      if (sortBy === 'designation') return a.designation.localeCompare(b.designation);
+      if (sortBy === 'status') return (a.status || 'active').localeCompare(b.status || 'active');
+      return 0;
+    });
+
+    return result;
+  }, [employees, search, deptFilter, desigFilter, seniorFilter, statusFilter, sortBy]);
+
+  function generatePassword() {
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%';
+    let pass = '';
+    for (let i = 0; i < 10; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return pass + '9A!';
+  }
+
   async function handleAddEmployee(e: React.FormEvent) {
     e.preventDefault();
+    if (newEmployee.password && newEmployee.password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
     setAdding(true);
     setError('');
 
@@ -97,6 +192,9 @@ export default function AdminEmployeesPage() {
 
       if (res.ok && data.employee) {
         setIsAddModalOpen(false);
+        setSuccess(`Registered employee: ${data.employee.full_name} (${data.employee.employee_code})`);
+        setTimeout(() => setSuccess(''), 4000);
+
         setNewEmployee({
           full_name: '',
           designation: 'Technician',
@@ -105,15 +203,19 @@ export default function AdminEmployeesPage() {
           phone: '',
           email: '',
           bio: '',
+          password: '',
+          is_senior: false,
         });
 
-        // Show temporary password modal ONCE
-        setTempPasswordModal({
-          open: true,
-          name: data.employee.full_name,
-          code: data.employee.employee_code,
-          password: data.tempPassword,
-        });
+        // If the admin auto-generated or let the system set the password, show temp password modal
+        if (data.tempPassword) {
+          setTempPasswordModal({
+            open: true,
+            name: data.employee.full_name,
+            code: data.employee.employee_code,
+            password: data.tempPassword,
+          });
+        }
 
         fetchEmployees();
       } else {
@@ -155,27 +257,49 @@ export default function AdminEmployeesPage() {
     }
   }
 
-  async function handleResetPassword(emp: Employee) {
-    if (!confirm(`Reset password for ${emp.full_name} (${emp.employee_code})?`)) return;
+  async function handleChangePasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!changePasswordModal.employee) return;
+    if (changePasswordModal.newPassword.length < 8) {
+      setChangePasswordModal((prev) => ({ ...prev, error: 'Password must be at least 8 characters long.' }));
+      return;
+    }
+
+    setChangePasswordModal((prev) => ({ ...prev, saving: true, error: '' }));
 
     try {
-      const res = await fetch(`/api/admin/employees/${emp.id}/reset-password`, {
+      const res = await fetch(`/api/admin/employees/${changePasswordModal.employee.id}/reset-password`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: changePasswordModal.newPassword }),
       });
       const data = await res.json();
 
-      if (res.ok && data.tempPassword) {
-        setTempPasswordModal({
-          open: true,
-          name: emp.full_name,
-          code: emp.employee_code,
-          password: data.tempPassword,
+      if (res.ok) {
+        const empName = changePasswordModal.employee.full_name;
+        setChangePasswordModal({
+          open: false,
+          employee: null,
+          newPassword: '',
+          showPass: false,
+          saving: false,
+          error: '',
         });
+        setSuccess(`Password updated successfully for ${empName}.`);
+        setTimeout(() => setSuccess(''), 4000);
       } else {
-        alert(data.error || 'Failed to reset password');
+        setChangePasswordModal((prev) => ({
+          ...prev,
+          saving: false,
+          error: data.error || 'Failed to update password',
+        }));
       }
     } catch {
-      alert('Network error resetting password');
+      setChangePasswordModal((prev) => ({
+        ...prev,
+        saving: false,
+        error: 'Network failure resetting password',
+      }));
     }
   }
 
@@ -204,26 +328,22 @@ export default function AdminEmployeesPage() {
   }
 
   function copyCredentials() {
-    const text = `Anubhav Plant Access:\nUser ID: ${tempPasswordModal.code}\nTemporary Password: ${tempPasswordModal.password}`;
+    const text = `Anubhav Plant Access:\nUser ID: ${tempPasswordModal.code}\nPassword: ${tempPasswordModal.password}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      {/* Header */}
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Header - No tagline pill */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 text-xs font-semibold mb-2">
-            <Users className="w-3.5 h-3.5" />
-            <span>Personnel Management Console</span>
-          </div>
-          <h1 className="font-display text-3xl font-bold text-slate-900">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
             Manage Factory Employees
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Authorize new technicians, reset credentials, update designations, or retire records.
+            Authorize new technicians, set credentials, update seniority & designations, or retire records.
           </p>
         </div>
 
@@ -251,18 +371,88 @@ export default function AdminEmployeesPage() {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="relative max-w-md">
-        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-          <Search className="w-4 h-4" />
+      {/* Search, Filter & Sort Toolbar */}
+      <div className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-soft space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, User ID, department..."
+              className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Sort */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+            >
+              <option value="name_asc">Sort: A to Z</option>
+              <option value="name_desc">Sort: Z to A</option>
+              <option value="dept">Sort: Department</option>
+              <option value="designation">Sort: Designation</option>
+              <option value="status">Sort: Status</option>
+            </select>
+
+            {/* Department Filter */}
+            <select
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value)}
+              className="px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+            >
+              <option value="all">All Departments</option>
+              {departments.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+
+            {/* Designation Filter */}
+            <select
+              value={desigFilter}
+              onChange={(e) => setDesigFilter(e.target.value)}
+              className="px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+            >
+              <option value="all">All Roles</option>
+              {designations.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+            </select>
+
+            {/* Senior Verified Toggle Filter */}
+            <button
+              type="button"
+              onClick={() => setSeniorFilter(!seniorFilter)}
+              className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border ${
+                seniorFilter
+                  ? 'bg-rose-50 border-rose-300 text-rose-700'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Senior Only</span>
+            </button>
+          </div>
         </div>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filter by name, designation, department, or User ID..."
-          className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600 bg-white shadow-sm"
-        />
       </div>
 
       {/* Employees Table */}
@@ -275,6 +465,7 @@ export default function AdminEmployeesPage() {
                 <th className="py-3.5 px-4">User ID</th>
                 <th className="py-3.5 px-4">Department & Role</th>
                 <th className="py-3.5 px-4">Experience</th>
+                <th className="py-3.5 px-4">Status</th>
                 <th className="py-3.5 px-4">Contact</th>
                 <th className="py-3.5 px-4 sm:px-6 text-right">Actions</th>
               </tr>
@@ -282,111 +473,239 @@ export default function AdminEmployeesPage() {
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     Loading factory roster...
                   </td>
                 </tr>
-              ) : employees.length === 0 ? (
+              ) : processedEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    No employees matching search criteria.
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    No employees matching the current filters.
                   </td>
                 </tr>
               ) : (
-                employees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-slate-50/60 transition-colors">
-                    {/* Name + Avatar */}
-                    <td className="py-3.5 px-4 sm:px-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center font-bold text-xs text-slate-700 shrink-0">
-                          {emp.avatar_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={emp.avatar_url}
-                              alt={emp.full_name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            emp.full_name.slice(0, 2).toUpperCase()
-                          )}
+                processedEmployees.map((emp) => {
+                  const isSenior = emp.is_senior || (emp.experience_years && emp.experience_years >= 10);
+                  const status = emp.status || 'active';
+
+                  return (
+                    <tr key={emp.id} className="hover:bg-slate-50/60 transition-colors">
+                      {/* Name + Avatar */}
+                      <td className="py-3.5 px-4 sm:px-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center font-bold text-xs text-slate-700 shrink-0">
+                            {emp.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={emp.avatar_url}
+                                alt={emp.full_name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              emp.full_name.slice(0, 2).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-bold text-slate-900">{emp.full_name}</p>
+                              {isSenior && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
+                                  <Award className="w-3 h-3 text-amber-600" />
+                                  <span>Verified</span>
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400">{emp.designation}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-900">{emp.full_name}</p>
-                          <p className="text-[11px] text-slate-400">{emp.designation}</p>
+                      </td>
+
+                      {/* User ID */}
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
+                        <span className="bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                          {emp.employee_code}
+                        </span>
+                      </td>
+
+                      {/* Department & Role */}
+                      <td className="py-3.5 px-4">
+                        <p className="font-semibold text-slate-800">{emp.department}</p>
+                        <p className="text-[11px] text-slate-500">
+                          Joined {new Date(emp.joined_on).toLocaleDateString()}
+                        </p>
+                      </td>
+
+                      {/* Experience */}
+                      <td className="py-3.5 px-4">
+                        <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
+                          <Award className="w-3.5 h-3.5 text-rose-600" />
+                          {emp.experience_years} yrs
+                        </span>
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            status === 'active'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
+                          }`}
+                        >
+                          {status}
+                        </span>
+                      </td>
+
+                      {/* Contact */}
+                      <td className="py-3.5 px-4 text-[11px] text-slate-500">
+                        <p>{emp.email || 'No email'}</p>
+                        <p className="text-slate-400">{emp.phone || 'No phone'}</p>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3.5 px-4 sm:px-6 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingEmployee(emp);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-xl text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                            title="Edit Employee Details"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setChangePasswordModal({
+                                open: true,
+                                employee: emp,
+                                newPassword: '',
+                                showPass: false,
+                                saving: false,
+                                error: '',
+                              });
+                            }}
+                            className="p-1.5 rounded-xl text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                            title="Change Password"
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setDeletingEmployee(emp)}
+                            className="p-1.5 rounded-xl text-slate-500 hover:text-red-700 hover:bg-red-50 transition-colors"
+                            title="Remove Employee"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      </div>
-                    </td>
-
-                    {/* User ID */}
-                    <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
-                      <span className="bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-                        {emp.employee_code}
-                      </span>
-                    </td>
-
-                    {/* Department & Role */}
-                    <td className="py-3.5 px-4">
-                      <p className="font-semibold text-slate-800">{emp.department}</p>
-                      <p className="text-[11px] text-slate-500">
-                        Joined {new Date(emp.joined_on).toLocaleDateString()}
-                      </p>
-                    </td>
-
-                    {/* Experience */}
-                    <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
-                        <Award className="w-3.5 h-3.5 text-rose-600" />
-                        {emp.experience_years} yrs
-                      </span>
-                    </td>
-
-                    {/* Contact */}
-                    <td className="py-3.5 px-4 text-[11px] text-slate-500">
-                      <p>{emp.email || 'No email'}</p>
-                      <p className="text-slate-400">{emp.phone || 'No phone'}</p>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3.5 px-4 sm:px-6 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingEmployee(emp);
-                            setIsEditModalOpen(true);
-                          }}
-                          className="p-1.5 rounded-xl text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
-                          title="Edit Employee Details"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleResetPassword(emp)}
-                          className="p-1.5 rounded-xl text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
-                          title="Reset Password"
-                        >
-                          <KeyRound className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setDeletingEmployee(emp)}
-                          className="p-1.5 rounded-xl text-slate-500 hover:text-red-700 hover:bg-red-50 transition-colors"
-                          title="Remove Employee"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* CHANGE PASSWORD MODAL */}
+      {changePasswordModal.open && changePasswordModal.employee && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-rose-600">
+                <KeyRound className="w-5 h-5" />
+                <h3 className="font-display text-lg font-bold text-slate-900">Change Password</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChangePasswordModal((prev) => ({ ...prev, open: false }))}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 mt-3">
+              Set a new login password for <strong>{changePasswordModal.employee.full_name}</strong> (
+              <span className="font-mono">{changePasswordModal.employee.employee_code}</span>). Minimum 8 characters.
+            </p>
+
+            {changePasswordModal.error && (
+              <div className="mt-3 p-2.5 rounded-xl bg-red-50 text-red-700 text-xs font-medium">
+                {changePasswordModal.error}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-4 mt-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700">New Password *</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setChangePasswordModal((prev) => ({
+                        ...prev,
+                        newPassword: generatePassword(),
+                        showPass: true,
+                      }))
+                    }
+                    className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1"
+                  >
+                    <Wand2 className="w-3 h-3" />
+                    <span>Generate</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={changePasswordModal.showPass ? 'text' : 'password'}
+                    value={changePasswordModal.newPassword}
+                    onChange={(e) =>
+                      setChangePasswordModal((prev) => ({ ...prev, newPassword: e.target.value }))
+                    }
+                    required
+                    minLength={8}
+                    placeholder="Min 8 characters"
+                    className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setChangePasswordModal((prev) => ({ ...prev, showPass: !prev.showPass }))
+                    }
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {changePasswordModal.showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setChangePasswordModal((prev) => ({ ...prev, open: false }))}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={changePasswordModal.saving}
+                  className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm"
+                >
+                  {changePasswordModal.saving ? 'Updating...' : 'Set Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* TEMPORARY PASSWORD DISPLAY MODAL (Shown once!) */}
       {tempPasswordModal.open && (
@@ -412,7 +731,7 @@ export default function AdminEmployeesPage() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-sans font-semibold">Temp Password:</span>
+                <span className="text-slate-500 font-sans font-semibold">Password:</span>
                 <span className="font-bold text-emerald-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 select-all">
                   {tempPasswordModal.password}
                 </span>
@@ -471,6 +790,61 @@ export default function AdminEmployeesPage() {
                   required
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                 />
+              </div>
+
+              {/* Password Field (Admin creates or generates password, min 8 chars) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Password * (min 8 chars)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewEmployee({ ...newEmployee, password: generatePassword() });
+                      setShowAddPassword(true);
+                    }}
+                    className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1"
+                  >
+                    <Wand2 className="w-3 h-3" />
+                    <span>Generate</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showAddPassword ? 'text' : 'password'}
+                    value={newEmployee.password}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })}
+                    required
+                    minLength={8}
+                    placeholder="Create login password (min 8 characters)"
+                    className="w-full px-3 py-2 pr-10 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPassword(!showAddPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showAddPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Senior / Verified Toggle */}
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-900">Mark as Senior / Verified</p>
+                  <p className="text-[11px] text-slate-500">Grants verified credentials badge in rosters and directory.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newEmployee.is_senior}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, is_senior: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+                </label>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -569,7 +943,7 @@ export default function AdminEmployeesPage() {
                   disabled={adding}
                   className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm"
                 >
-                  {adding ? 'Registering...' : 'Register & Generate ID'}
+                  {adding ? 'Registering...' : 'Register Employee'}
                 </button>
               </div>
             </form>
@@ -606,6 +980,38 @@ export default function AdminEmployeesPage() {
                   required
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                 />
+              </div>
+
+              {/* Senior / Verified Toggle */}
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-900">Senior / Verified Technician</p>
+                  <p className="text-[11px] text-slate-500">Enable verified badge in roster and company library.</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editingEmployee.is_senior)}
+                    onChange={(e) => setEditingEmployee({ ...editingEmployee, is_senior: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+                </label>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Employment Status
+                </label>
+                <select
+                  value={editingEmployee.status || 'active'}
+                  onChange={(e) => setEditingEmployee({ ...editingEmployee, status: e.target.value as any })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20 bg-white"
+                >
+                  <option value="active">Active</option>
+                  <option value="suspended">Suspended</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -747,4 +1153,3 @@ export default function AdminEmployeesPage() {
     </div>
   );
 }
-

@@ -73,6 +73,23 @@ export async function updateOrganizationPassword(id: string, passwordHash: strin
   return true;
 }
 
+export async function updateOrganization(id: string, updates: Partial<Organization>): Promise<Organization | null> {
+  const supabase = getSupabaseAdmin();
+  const { id: _id, password_hash: _p, created_at: _c, ...safeUpdates } = updates;
+  const { data, error } = await supabase
+    .from('organizations')
+    .update(safeUpdates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating organization:', error);
+    return null;
+  }
+  return data;
+}
+
 // -----------------------------------------------------------------------------
 // Employee Operations
 // -----------------------------------------------------------------------------
@@ -111,7 +128,7 @@ export async function getEmployeesByOrg(orgId: string, search?: string): Promise
   const supabase = getSupabaseAdmin();
   let query = supabase
     .from('employees')
-    .select('id, org_id, employee_code, full_name, designation, department, experience_years, phone, email, joined_on, bio, avatar_url, created_at')
+    .select('id, org_id, employee_code, full_name, designation, department, experience_years, phone, email, joined_on, bio, avatar_url, created_at, is_senior')
     .eq('org_id', orgId)
     .order('created_at', { ascending: false });
 
@@ -141,6 +158,8 @@ export async function createEmployee(data: {
   joined_on?: string;
   bio?: string;
   avatar_url?: string;
+  is_senior?: boolean;
+  status?: 'active' | 'suspended';
 }): Promise<Employee | null> {
   const supabase = getSupabaseAdmin();
   const { data: created, error } = await supabase
@@ -326,8 +345,8 @@ export async function getApprovedEntriesByOrg(orgId: string, options?: {
     .from('entries')
     .select(`
       *,
-      employee:employees(id, full_name, designation, avatar_url),
-      machine:machines(id, name, category)
+      employee:employees(id, full_name, designation, avatar_url, is_senior),
+      machine:machines(id, name, category, status, department)
     `)
     .eq('org_id', orgId)
     .eq('status', 'approved')
@@ -378,8 +397,8 @@ export async function getPendingEntriesByOrg(orgId: string): Promise<Entry[]> {
     .from('entries')
     .select(`
       *,
-      employee:employees(id, full_name, designation, avatar_url),
-      machine:machines(id, name, category)
+      employee:employees(id, full_name, designation, avatar_url, is_senior),
+      machine:machines(id, name, category, status, department)
     `)
     .eq('org_id', orgId)
     .eq('status', 'pending')
@@ -404,8 +423,8 @@ export async function getAllEntriesByOrg(orgId: string, options?: {
     .from('entries')
     .select(`
       *,
-      employee:employees(id, full_name, designation, avatar_url),
-      machine:machines(id, name, category)
+      employee:employees(id, full_name, designation, avatar_url, is_senior),
+      machine:machines(id, name, category, status, department)
     `)
     .eq('org_id', orgId)
     .order('updated_at', { ascending: false });
@@ -468,6 +487,8 @@ export async function createEntry(data: {
   tags?: string[];
   is_safety_critical?: boolean;
   status?: 'pending' | 'approved' | 'rejected';
+  thumbnail_url?: string | null;
+  attachments?: any[];
 }): Promise<Entry | null> {
   const supabase = getSupabaseAdmin();
   const { data: created, error } = await supabase
@@ -477,6 +498,8 @@ export async function createEntry(data: {
       tags: data.tags || [],
       is_safety_critical: !!data.is_safety_critical,
       status: data.status || 'pending',
+      thumbnail_url: data.thumbnail_url || null,
+      attachments: data.attachments || [],
     }])
     .select()
     .single();
@@ -758,6 +781,38 @@ export async function uploadMediaFile(
   } catch (err: unknown) {
     console.error('Failed to upload file to storage:', err);
     return { url: null, error: (err as Error).message || 'Upload failed' };
+  }
+}
+
+export async function createSignedUploadUrl(
+  fileName: string,
+  contentType: string
+): Promise<{ signedUrl: string | null; publicUrl: string | null; path: string | null; error: string | null }> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const uniquePath = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    const { data, error } = await supabase.storage
+      .from('anubhav-media')
+      .createSignedUploadUrl(uniquePath);
+
+    if (error || !data) {
+      console.error('Supabase signed upload URL error:', error);
+      return { signedUrl: null, publicUrl: null, path: null, error: error?.message || 'Failed to create signed URL' };
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('anubhav-media')
+      .getPublicUrl(uniquePath);
+
+    return {
+      signedUrl: data.signedUrl,
+      publicUrl: publicUrlData.publicUrl,
+      path: uniquePath,
+      error: null,
+    };
+  } catch (err: unknown) {
+    console.error('Failed to create signed upload url:', err);
+    return { signedUrl: null, publicUrl: null, path: null, error: (err as Error).message || 'Failed' };
   }
 }
 

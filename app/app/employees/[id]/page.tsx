@@ -14,6 +14,8 @@ import {
   ChevronRight,
   Eye,
   X,
+  Phone,
+  Mail,
 } from 'lucide-react';
 import { Employee, Entry } from '@/lib/types';
 import { sanitizeContent } from '@/lib/sanitize';
@@ -114,9 +116,12 @@ export default function EmployeeDetailPage({
                 <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
                   {employee.full_name}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                  Active
-                </span>
+                {(employee.is_senior || employee.experience_years >= 10) && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    Verified Senior
+                  </span>
+                )}
               </div>
               <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
                 {employee.designation} • {employee.department}
@@ -131,6 +136,28 @@ export default function EmployeeDetailPage({
                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
                   Joined {new Date(employee.joined_on).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}
                 </span>
+              </div>
+
+              {/* Contact Details */}
+              <div className="mt-4 flex flex-wrap items-center gap-2.5 justify-center sm:justify-start">
+                {employee.phone && (
+                  <a
+                    href={`tel:${employee.phone}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 text-xs font-semibold text-slate-700 hover:text-emerald-800 transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{employee.phone}</span>
+                  </a>
+                )}
+                {employee.email && (
+                  <a
+                    href={`mailto:${employee.email}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 text-xs font-semibold text-slate-700 hover:text-emerald-800 transition-colors"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{employee.email}</span>
+                  </a>
+                )}
               </div>
             </div>
           </div>

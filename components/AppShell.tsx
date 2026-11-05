@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Logo } from '@/components/Logo';
 import { SessionPayload } from '@/lib/types';
 import {
+  Home,
   Sparkles,
   FileEdit,
   Users,
@@ -18,6 +19,8 @@ import {
   Shield,
   KeyRound,
   Building,
+  Cpu,
+  Building2,
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -42,14 +45,16 @@ export function AppShell({ session, children }: AppShellProps) {
     ? [
         { label: 'Ask AI', href: '/app/ask', icon: Sparkles },
         { label: 'Manage Employees', href: '/app/admin/employees', icon: Users },
-        { label: 'Approve Data', href: '/app/admin/approve', icon: CheckCircle2 },
-        { label: 'Library', href: '/app/library', icon: BookOpen },
+        { label: 'Manage Entries', href: '/app/admin/approve', icon: CheckCircle2 },
+        { label: 'Manage Machines', href: '/app/library', icon: Cpu },
+        { label: 'Help', href: '/app/admin/help', icon: HelpCircle },
       ]
     : [
+        { label: 'Home', href: '/app/home', icon: Home },
         { label: 'Ask AI', href: '/app/ask', icon: Sparkles },
-        { label: 'Record Info', href: '/app/record', icon: FileEdit },
+        { label: 'Entries', href: '/app/entries', icon: FileEdit },
         { label: 'Employees', href: '/app/employees', icon: Users },
-        { label: 'Library', href: '/app/library', icon: BookOpen },
+        { label: 'Machines', href: '/app/library', icon: Cpu },
         { label: 'Help', href: '/app/help', icon: HelpCircle },
       ];
 
@@ -107,7 +112,7 @@ export function AppShell({ session, children }: AppShellProps) {
       {/* TOP BAR */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/app/ask" className="flex items-center gap-2">
+          <Link href={isIndustry ? '/app/ask' : '/app/home'} className="flex items-center gap-2">
             <Logo size={36} role={session.role} />
           </Link>
           <div className="hidden sm:flex items-center gap-2 pl-4 border-l border-slate-200 text-xs font-medium text-slate-500">
@@ -172,7 +177,7 @@ export function AppShell({ session, children }: AppShellProps) {
                         : 'bg-emerald-100 text-emerald-800'
                     }`}
                   >
-                    {isIndustry ? 'Industry Role' : 'Employee Role'}
+                    {isIndustry ? 'INDUSTRY' : 'EMPLOYEE'}
                   </span>
                 </div>
 
@@ -197,17 +202,27 @@ export function AppShell({ session, children }: AppShellProps) {
                       </Link>
                     </>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        setChangePasswordOpen(true);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-rose-700 transition-colors text-left"
-                    >
-                      <KeyRound className="w-4 h-4 text-slate-400" />
-                      <span>Change Password</span>
-                    </button>
+                    <>
+                      <Link
+                        href="/app/admin/profile"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-rose-700 transition-colors"
+                      >
+                        <Building2 className="w-4 h-4 text-slate-400" />
+                        <span>Industry Profile</span>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          setChangePasswordOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-rose-700 transition-colors text-left"
+                      >
+                        <KeyRound className="w-4 h-4 text-slate-400" />
+                        <span>Change Password</span>
+                      </button>
+                    </>
                   )}
                 </div>
 
@@ -228,17 +243,20 @@ export function AppShell({ session, children }: AppShellProps) {
         </div>
       </header>
 
-      {/* BODY WITH COLLAPSED/EXPANDING SIDEBAR */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* DESKTOP SIDEBAR: Collapsed by default (icons only), expands smoothly on hover */}
+      {/* BODY WITH FIXED COLLAPSED/EXPANDING SIDEBAR */}
+      <div className="flex-1 flex relative">
+        {/* DESKTOP SIDEBAR: Fixed, icon-only by default, expanding smoothly on hover */}
         <aside
-          className="hidden md:flex flex-col bg-white border-r border-slate-200/80 transition-all duration-300 ease-in-out group z-30 shadow-sm w-[72px] hover:w-64 overflow-hidden"
+          className="hidden md:flex flex-col bg-white border-r border-slate-200/80 transition-all duration-300 ease-in-out group z-30 shadow-sm fixed top-16 bottom-0 left-0 w-[72px] hover:w-64 hover:shadow-xl overflow-hidden"
           style={{ willChange: 'width' }}
         >
-          <div className="p-3 flex-1 flex flex-col gap-1.5">
+          <div className="p-3 flex-1 flex flex-col gap-1.5 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isActive =
+                item.href === '/app/entries'
+                  ? pathname === '/app/entries' || pathname.startsWith('/app/record')
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
               return (
                 <Link
@@ -282,8 +300,8 @@ export function AppShell({ session, children }: AppShellProps) {
           </div>
         </aside>
 
-        {/* MAIN CONTENT AREA */}
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        {/* MAIN CONTENT AREA: Independent scroll, left offset for fixed sidebar */}
+        <main className="flex-1 md:ml-[72px] overflow-y-auto pb-20 md:pb-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
           {children}
         </main>
       </div>
@@ -292,7 +310,10 @@ export function AppShell({ session, children }: AppShellProps) {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-lg">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const isActive =
+            item.href === '/app/entries'
+              ? pathname === '/app/entries' || pathname.startsWith('/app/record')
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <Link
@@ -387,4 +408,3 @@ export function AppShell({ session, children }: AppShellProps) {
     </div>
   );
 }
-

@@ -37,7 +37,18 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, category, description, specifications, common_issues, safety_notes, image_url } = body;
+    const {
+      name,
+      category,
+      description,
+      specifications,
+      common_issues,
+      safety_notes,
+      image_url,
+      status = 'active',
+      department,
+      gallery = [],
+    } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: 'Machine name is required' }, { status: 400 });
@@ -52,6 +63,9 @@ export async function POST(req: NextRequest) {
       common_issues: common_issues?.trim() || '',
       safety_notes: safety_notes?.trim() || '',
       image_url: image_url || '',
+      status: status || 'active',
+      department: department || null,
+      gallery: Array.isArray(gallery) ? gallery : [],
     });
 
     if (!created) {

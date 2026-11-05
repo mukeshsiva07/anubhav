@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Logo } from '@/components/Logo';
 import {
   Eye,
   EyeOff,
@@ -14,8 +13,6 @@ import {
   CheckCircle2,
   Cpu,
   Sparkles,
-  BookOpen,
-  HelpCircle,
   KeyRound,
 } from 'lucide-react';
 
@@ -24,14 +21,14 @@ export default function LoginPage() {
   const [activeTab, setActiveTab] = useState<'employee' | 'industry'>('employee');
 
   // Form states
-  const [employeeCode, setEmployeeCode] = useState('2511377');
-  const [orgName, setOrgName] = useState('Aurobindo Manufacturing');
-  const [password, setPassword] = useState('mukesh_siva');
+  const [employeeCode, setEmployeeCode] = useState('');
+  const [orgName, setOrgName] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   // Industry admin states
-  const [adminOrgName, setAdminOrgName] = useState('Aurobindo Manufacturing');
-  const [adminPassword, setAdminPassword] = useState('aurobindo47');
+  const [adminOrgName, setAdminOrgName] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -75,7 +72,12 @@ export default function LoginPage() {
       }
 
       setSuccessMsg('Authenticated successfully. Loading workspace...');
-      router.push('/app/ask');
+      // Employees go to Home; industry goes to Ask AI
+      if (activeTab === 'employee') {
+        router.push('/app/home');
+      } else {
+        router.push('/app/ask');
+      }
       router.refresh();
     } catch {
       setErrorMsg('A network or server error occurred. Please try again.');
@@ -128,138 +130,100 @@ export default function LoginPage() {
     }
   }
 
-  function setDemoEmployee() {
-    setActiveTab('employee');
-    setEmployeeCode('2511377');
-    setPassword('mukesh_siva');
-    setOrgName('Aurobindo Manufacturing');
-    setErrorMsg('');
-  }
-
-  function setDemoAdmin() {
-    setActiveTab('industry');
-    setAdminOrgName('Aurobindo Manufacturing');
-    setAdminPassword('aurobindo47');
-    setErrorMsg('');
-  }
-
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50 text-slate-800">
       {/* LEFT SPLIT: Branding & Value Proposition */}
-      <div className="relative w-full lg:w-1/2 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-8 sm:p-12 lg:p-16 flex flex-col justify-between overflow-hidden">
-        {/* Subtle decorative glowing mesh */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-rose-500/10 rounded-full blur-3xl pointer-events-none -ml-20 -mb-20" />
+      <div className="relative w-full lg:w-1/2 text-white p-8 sm:p-12 lg:p-16 flex flex-col justify-between overflow-hidden" style={{ background: 'linear-gradient(135deg, #0a0f1a 0%, #0d1a2b 40%, #0a1628 70%, #060e18 100%)' }}>
+        {/* Subtle animated grid pattern */}
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.8) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.8) 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
+
+        {/* Animated glow orbs */}
+        <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl pointer-events-none animate-pulse" style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%)', marginRight: '-5rem', marginTop: '-5rem' }} />
+        <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(244,63,94,0.08) 0%, transparent 70%)', marginLeft: '-4rem', marginBottom: '-4rem' }} />
+        <div className="absolute top-1/2 left-1/2 w-64 h-64 rounded-full blur-3xl pointer-events-none opacity-30" style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%)', transform: 'translate(-60%, -40%)' }} />
 
         {/* Top Header */}
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <span className="font-display font-black text-2xl text-slate-950">A</span>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg" style={{ background: 'linear-gradient(135deg, #10b981 0%, #0d9488 100%)', boxShadow: '0 4px 20px rgba(16,185,129,0.3)' }}>
+              <span className="font-black text-2xl text-slate-950">A</span>
             </div>
             <div>
-              <h1 className="font-display font-bold text-2xl tracking-tight text-white leading-none">
+              <h1 className="font-bold text-xl tracking-tight text-white leading-none">
                 Anubhav
               </h1>
-              <p className="text-[12px] text-slate-400 font-medium tracking-wide">
-                Institutional Knowledge Vault
+              <p className="text-[11px] text-slate-400 font-medium tracking-widest uppercase">
+                Knowledge Vault
               </p>
             </div>
           </div>
 
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border" style={{ background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.2)', color: '#34d399' }}>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Vercel + Supabase Active
+            Live
           </span>
         </div>
 
         {/* Hero Copy */}
         <div className="relative z-10 my-12 lg:my-0 max-w-xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs text-slate-300 font-medium mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs text-slate-300 font-medium mb-7" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
             <span>Built for Modern Smart Manufacturing</span>
           </div>
 
-          <h2 className="font-display text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-[1.15]">
-            Every expert&apos;s experience, <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
+          <h2 className="text-4xl sm:text-[2.75rem] font-extrabold tracking-tight text-white leading-[1.12]">
+            Every expert&apos;s experience,{' '}
+            <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(90deg, #34d399 0%, #2dd4bf 50%, #67e8f9 100%)' }}>
               saved forever.
             </span>
           </h2>
 
-          <p className="mt-5 text-base sm:text-lg text-slate-300 leading-relaxed font-normal">
+          <p className="mt-5 text-sm text-slate-400 leading-relaxed" style={{ lineHeight: '1.75' }}>
             When a senior technician retires, decades of critical machine-specific instincts
-            vanish. Anubhav captures shop-floor tricks, validates them with strict plant oversight,
-            and empowers freshers with a zero-hallucination factory AI.
+            vanish. Anubhav captures shop-floor knowledge, validates it with plant oversight,
+            and empowers your team with AI grounded in real records.
           </p>
 
           {/* Three Key Pillar Badges */}
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/30 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-2">
-                <Cpu className="w-4 h-4" />
+            <div className="p-3.5 rounded-2xl transition-colors" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-2" style={{ background: 'rgba(16,185,129,0.1)' }}>
+                <Cpu className="w-4 h-4 text-emerald-400" />
               </div>
               <h4 className="text-xs font-bold text-slate-200">Shop-Floor Tricks</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">Real machine nuances recorded by veterans.</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Real machine nuances recorded by veterans.</p>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-800 hover:border-emerald-500/30 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center mb-2">
-                <CheckCircle2 className="w-4 h-4" />
+            <div className="p-3.5 rounded-2xl transition-colors" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-2" style={{ background: 'rgba(45,212,191,0.1)' }}>
+                <CheckCircle2 className="w-4 h-4 text-teal-400" />
               </div>
               <h4 className="text-xs font-bold text-slate-200">Admin Approved</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">Strict organization review and quality gating.</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Strict organization review and quality gating.</p>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-800 hover:border-rose-500/30 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center mb-2">
-                <ShieldAlert className="w-4 h-4" />
+            <div className="p-3.5 rounded-2xl transition-colors" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-2" style={{ background: 'rgba(244,63,94,0.1)' }}>
+                <ShieldAlert className="w-4 h-4 text-rose-400" />
               </div>
               <h4 className="text-xs font-bold text-slate-200">Grounded AI</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">Answers ONLY from approved shopfloor records.</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Answers ONLY from approved shopfloor records.</p>
             </div>
           </div>
         </div>
 
         {/* Bottom Footer Quote */}
-        <div className="relative z-10 pt-6 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+        <div className="relative z-10 pt-6 flex items-center justify-between text-xs text-slate-500" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <p className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Aurobindo Manufacturing Plant System</span>
+            <span className="italic text-slate-400">&ldquo;The expert who leaves takes the knowledge with them &mdash; unless Anubhav is there.&rdquo;</span>
           </p>
-          <span className="font-mono text-slate-500">v1.0.0</span>
         </div>
       </div>
 
       {/* RIGHT SPLIT: Modern Tabbed Authentication Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 lg:p-16">
         <div className="w-full max-w-md">
-          {/* Quick Fill Pills for Demo Reviewers */}
-          <div className="mb-6 p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm">
-            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
-              <span>Demo Quick-Fill Credentials:</span>
-              <span className="text-[10px] text-emerald-600 font-normal">Click to test</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={setDemoEmployee}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-all flex items-center gap-1.5"
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>Mukesh (Employee: 2511377)</span>
-              </button>
-              <button
-                type="button"
-                onClick={setDemoAdmin}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 transition-all flex items-center gap-1.5"
-              >
-                <Building2 className="w-3.5 h-3.5" />
-                <span>Aurobindo Admin</span>
-              </button>
-            </div>
-          </div>
-
           {/* Main Card */}
           <div className="bg-white rounded-3xl border border-slate-200/90 shadow-soft p-8">
             {/* Split Screen Tabs: Employee vs Industry */}
@@ -485,7 +449,7 @@ export default function LoginPage() {
                     Reset Password
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Verify account & update security credentials
+                    Verify account &amp; update security credentials
                   </p>
                 </div>
               </div>
@@ -595,4 +559,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

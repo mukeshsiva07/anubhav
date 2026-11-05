@@ -6,19 +6,18 @@ import {
   Send,
   RotateCcw,
   ShieldAlert,
-  CheckCircle2,
-  AlertTriangle,
   ChevronDown,
   ChevronUp,
   Bot,
   User,
-  ExternalLink,
-  BookOpen,
-  HelpCircle,
   Clock,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  AlertCircle,
 } from 'lucide-react';
 import { Entry } from '@/lib/types';
-import Link from 'next/link';
 
 interface ChatMessage {
   id: string;
@@ -28,6 +27,7 @@ interface ChatMessage {
   sources?: Entry[];
   safetyNotes?: string[];
   isUnanswered?: boolean;
+  language?: 'en' | 'ta';
 }
 
 export default function AskAiPage() {
@@ -37,14 +37,16 @@ export default function AskAiPage() {
   const [userRole, setUserRole] = useState<'employee' | 'industry'>('employee');
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Voice recording state
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+  const [tamilVoiceWarning, setTamilVoiceWarning] = useState<string | null>(null);
 
-  const starterQuestions = [
-    'Why is Lathe #3 vibrating after 2 hours?',
-    'What should I check before starting Industrial Boiler #1?',
-    'Hydraulic Press #2 morning pressure sluggishness fix',
-    'How do I eliminate harmonic chatter on thin brass bushings?',
-  ];
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchSessionRole();
@@ -52,7 +54,7 @@ export default function AskAiPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, loading, transcribing]);
 
   async function fetchSessionRole() {
     try {
@@ -67,31 +69,176 @@ export default function AskAiPage() {
   }
 
   function handleNewChat() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     setMessages([]);
     setInputQuestion('');
     setExpandedSourceId(null);
+    setVoiceError(null);
+    setTamilVoiceWarning(null);
+    setSpeakingMsgId(null);
   }
 
-  async function handleSend(questionText?: string) {
+  // Voice Recording via MediaRecorder
+  async function startRecording() {
+    setVoiceError(null);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setVoiceError('Audio recording is not supported in this browser environment.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/mp4';
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (audioBlob.size === 0) {
+          setVoiceError('No audio was captured. Please try speaking again.');
+          return;
+        }
+        await handleTranscribe(audioBlob);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch (err: any) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setVoiceError('Microphone permission was denied. Please allow microphone access in your browser settings.');
+      } else {
+        setVoiceError('Unable to access microphone. Please check your audio hardware.');
+      }
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorderRef.current && recording) {
+      mediaRecorderRef.current.stop();
+      setRecording(false);
+    }
+  }
+
+  async function handleTranscribe(blob: Blob) {
+    setTranscribing(true);
+    setVoiceError(null);
+    try {
+      const formData = new FormData();
+      formData.append('audio', blob, 'voice.webm');
+
+      const res = await fetch('/api/voice/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setVoiceError(data.error || 'Failed to transcribe speech.');
+      } else if (data.transcript && data.transcript.trim()) {
+        const transcriptText = data.transcript.trim();
+        setInputQuestion(transcriptText);
+        handleSend(transcriptText, data.language);
+      } else {
+        setVoiceError('No speech detected in audio. Please try speaking clearly.');
+      }
+    } catch {
+      setVoiceError('Network error while transcribing audio.');
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  // Text-To-Speech playback
+  function handleSpeak(msgId: string, text: string, langHint?: 'en' | 'ta') {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      setVoiceError('Speech synthesis is not supported in this browser.');
+      return;
+    }
+
+    if (speakingMsgId === msgId) {
+      window.speechSynthesis.cancel();
+      setSpeakingMsgId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    setSpeakingMsgId(msgId);
+    setTamilVoiceWarning(null);
+
+    const isTamil = langHint === 'ta' || /[\u0B80-\u0BFF]/.test(text);
+    const targetLang = isTamil ? 'ta-IN' : 'en-IN';
+
+    // Strip Markdown symbols for clean speech output
+    const cleanSpeech = text
+      .replace(/\[Record ID:[^\]]+\]/g, '')
+      .replace(/[*#_`]/g, '')
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanSpeech);
+    utterance.lang = targetLang;
+    utterance.rate = 0.95;
+
+    const voices = window.speechSynthesis.getVoices();
+    if (isTamil) {
+      const tamilVoice = voices.find((v) => v.lang.startsWith('ta'));
+      if (tamilVoice) {
+        utterance.voice = tamilVoice;
+      } else {
+        setTamilVoiceWarning('A native Tamil system voice is not installed. Playback will use the default voice.');
+      }
+    } else {
+      const englishVoice = voices.find(
+        (v) => v.lang === 'en-IN' || v.lang === 'en-GB' || v.lang.startsWith('en')
+      );
+      if (englishVoice) {
+        utterance.voice = englishVoice;
+      }
+    }
+
+    utterance.onend = () => setSpeakingMsgId(null);
+    utterance.onerror = () => setSpeakingMsgId(null);
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  async function handleSend(questionText?: string, detectedLang?: 'en' | 'ta') {
     const q = (questionText || inputQuestion).trim();
     if (!q || loading) return;
+
+    const isTamilQuestion = detectedLang === 'ta' || /[\u0B80-\u0BFF]/.test(q);
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
       text: q,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      language: isTamilQuestion ? 'ta' : 'en',
     };
 
     setMessages((prev) => [...prev, userMsg]);
     setInputQuestion('');
+    setVoiceError(null);
     setLoading(true);
 
     try {
       const res = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q }),
+        body: JSON.stringify({ question: q, language: isTamilQuestion ? 'ta' : 'en' }),
       });
 
       const data = await res.json();
@@ -100,16 +247,16 @@ export default function AskAiPage() {
         const errorMsg: ChatMessage = {
           id: `ai-${Date.now()}`,
           sender: 'ai',
-          text: data.error || 'A temporary server error occurred. Please try again.',
+          text: data.error || 'The AI service is unavailable, please try again.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         };
         setMessages((prev) => [...prev, errorMsg]);
         return;
       }
 
-      const isUnanswered = data.answer.includes(
-        'No record found. This question has been logged for an expert.'
-      );
+      const isUnanswered =
+        data.answer.includes('No record found. This question has been logged for an expert.') ||
+        data.answer.includes('எந்தப் பதிவும் கிடைக்கவில்லை');
 
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
@@ -119,6 +266,7 @@ export default function AskAiPage() {
         sources: data.sources || [],
         safetyNotes: data.safetyNotes || [],
         isUnanswered,
+        language: data.language || (isTamilQuestion ? 'ta' : 'en'),
       };
 
       setMessages((prev) => [...prev, aiMsg]);
@@ -126,7 +274,7 @@ export default function AskAiPage() {
       const errorMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: 'ai',
-        text: 'Failed to communicate with factory knowledge backend.',
+        text: 'The AI service is unavailable, please try again.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -140,21 +288,11 @@ export default function AskAiPage() {
       {/* Top Header Bar */}
       <div className="flex items-center justify-between pb-4 border-b border-slate-200">
         <div>
-          <div
-            className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold mb-1 ${
-              userRole === 'industry'
-                ? 'bg-rose-50 text-rose-800'
-                : 'bg-emerald-50 text-emerald-800'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Grounded Factory AI Assistant</span>
-          </div>
           <h1 className="font-display text-2xl font-bold text-slate-900">
             Ask Anubhav
           </h1>
           <p className="text-xs text-slate-500">
-            Strictly answers from approved shopfloor records and official equipment specs.
+            Ask questions in English or Tamil about machine quirks, troubleshooting, or plant procedures.
           </p>
         </div>
 
@@ -170,10 +308,25 @@ export default function AskAiPage() {
         )}
       </div>
 
+      {/* Voice & System Alerts */}
+      {voiceError && (
+        <div className="mt-3 p-3 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+          <span>{voiceError}</span>
+        </div>
+      )}
+
+      {tamilVoiceWarning && (
+        <div className="mt-3 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>{tamilVoiceWarning}</span>
+        </div>
+      )}
+
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto py-6 space-y-6">
         {messages.length === 0 ? (
-          /* Empty State with Suggested Starter Questions */
+          /* Empty State */
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
             <div
               className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-soft ${
@@ -186,37 +339,11 @@ export default function AskAiPage() {
             </div>
 
             <h3 className="font-display text-xl font-bold text-slate-800 mb-1">
-              Zero-Guesswork Factory Wisdom
+              Ask Any Factory Question
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 max-w-md mb-8">
-              Ask about unusual machine acoustics, thermal drift, troubleshooting procedures, or safety checklists.
+            <p className="text-xs sm:text-sm text-slate-500 max-w-md">
+              Type or tap the mic to speak in English or Tamil. Responses are drawn directly from approved plant records.
             </p>
-
-            {/* Suggested Question Chips */}
-            <div className="w-full max-w-lg space-y-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                Suggested Starter Queries:
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
-                {starterQuestions.map((q, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleSend(q)}
-                    className="p-3 rounded-2xl bg-white border border-slate-200/90 hover:border-slate-300 hover:shadow-soft text-xs text-slate-700 font-medium transition-all group flex flex-col justify-between"
-                  >
-                    <span>{q}</span>
-                    <span
-                      className={`text-[10px] font-semibold mt-2 group-hover:translate-x-0.5 transition-transform flex items-center gap-1 ${
-                        userRole === 'industry' ? 'text-rose-600' : 'text-emerald-700'
-                      }`}
-                    >
-                      Ask this query →
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         ) : (
           /* Chat Message Feed */
@@ -251,7 +378,33 @@ export default function AskAiPage() {
                   <span className="font-bold">
                     {msg.sender === 'user' ? 'You' : 'Anubhav AI'}
                   </span>
-                  <span>{msg.timestamp}</span>
+                  <div className="flex items-center gap-2">
+                    {msg.sender === 'ai' && (
+                      <button
+                        type="button"
+                        onClick={() => handleSpeak(msg.id, msg.text, msg.language)}
+                        className={`p-1 rounded-lg transition-colors flex items-center gap-1 ${
+                          speakingMsgId === msg.id
+                            ? 'text-emerald-700 bg-emerald-50 font-bold'
+                            : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                        }`}
+                        title={speakingMsgId === msg.id ? 'Stop reading' : 'Read aloud in audio'}
+                      >
+                        {speakingMsgId === msg.id ? (
+                          <>
+                            <VolumeX className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="text-[10px]">Stop</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 className="w-3.5 h-3.5" />
+                            <span className="text-[10px]">Listen</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                    <span>{msg.timestamp}</span>
+                  </div>
                 </div>
 
                 {/* Primary Text Content */}
@@ -264,12 +417,12 @@ export default function AskAiPage() {
                   <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium flex items-center gap-2">
                     <Clock className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>
-                      Logged in <strong>unanswered questions</strong>. Plant administrators will task a senior specialist to record this knowledge.
+                      Logged for a senior specialist to review and record verified knowledge.
                     </span>
                   </div>
                 )}
 
-                {/* Bold Red-Bordered Safety Notes Box */}
+                {/* Safety Notes Box */}
                 {msg.safetyNotes && msg.safetyNotes.length > 0 && (
                   <div className="p-4 rounded-2xl bg-red-50/90 border-2 border-red-300 text-red-900 space-y-1.5 shadow-sm">
                     <div className="flex items-center gap-2 font-bold text-xs text-red-950">
@@ -371,8 +524,8 @@ export default function AskAiPage() {
           ))
         )}
 
-        {/* Loading Indicator */}
-        {loading && (
+        {/* Loading / Transcribing Indicator */}
+        {(loading || transcribing) && (
           <div className="flex gap-3 justify-start items-center">
             <div
               className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
@@ -383,7 +536,11 @@ export default function AskAiPage() {
             </div>
             <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-soft flex items-center gap-2 text-xs text-slate-500">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span>Consulting factory records & equipment specs...</span>
+              <span>
+                {transcribing
+                  ? 'Transcribing voice in English / Tamil...'
+                  : 'Consulting factory records & equipment specs...'}
+              </span>
             </div>
           </div>
         )}
@@ -391,7 +548,7 @@ export default function AskAiPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form at Bottom */}
+      {/* Input Form at Bottom with Mic Button */}
       <div className="pt-3 border-t border-slate-200">
         <form
           onSubmit={(e) => {
@@ -404,32 +561,46 @@ export default function AskAiPage() {
             type="text"
             value={inputQuestion}
             onChange={(e) => setInputQuestion(e.target.value)}
-            placeholder="Ask about machine symptoms, exceptions, or operating quirks..."
-            disabled={loading}
+            placeholder="Ask about machine symptoms, exceptions, or operating quirks (English / தமிழ்)..."
+            disabled={loading || recording || transcribing}
             className="w-full pl-5 pr-28 py-3.5 rounded-3xl border border-slate-200/90 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 bg-white shadow-soft"
           />
 
-          <button
-            type="submit"
-            disabled={!inputQuestion.trim() || loading}
-            className={`absolute right-2 px-4 py-2 rounded-2xl text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm ${
-              !inputQuestion.trim() || loading
-                ? 'opacity-40 cursor-not-allowed bg-slate-400'
-                : userRole === 'industry'
-                ? 'bg-rose-600 hover:bg-rose-700'
-                : 'bg-emerald-600 hover:bg-emerald-700'
-            }`}
-          >
-            <span>Ask</span>
-            <Send className="w-3.5 h-3.5" />
-          </button>
-        </form>
+          <div className="absolute right-2 flex items-center gap-1.5">
+            {/* Mic Button */}
+            <button
+              type="button"
+              onClick={recording ? stopRecording : startRecording}
+              disabled={loading || transcribing}
+              className={`p-2.5 rounded-2xl transition-all flex items-center justify-center ${
+                recording
+                  ? 'bg-red-600 text-white animate-pulse shadow-md'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+              }`}
+              title={recording ? 'Stop recording voice' : 'Speak question in English or Tamil'}
+              aria-label={recording ? 'Stop recording voice' : 'Speak question'}
+            >
+              {recording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
 
-        <p className="text-[11px] text-center text-slate-400 mt-2">
-          Strict Zero-Hallucination Policy: Answers are derived exclusively from verified shopfloor records.
-        </p>
+            {/* Send Button */}
+            <button
+              type="submit"
+              disabled={!inputQuestion.trim() || loading || recording}
+              className={`px-4 py-2 rounded-2xl text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm ${
+                !inputQuestion.trim() || loading || recording
+                  ? 'opacity-40 cursor-not-allowed bg-slate-400'
+                  : userRole === 'industry'
+                  ? 'bg-rose-600 hover:bg-rose-700'
+                  : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
+            >
+              <span>Ask</span>
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
-

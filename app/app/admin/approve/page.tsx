@@ -315,18 +315,14 @@ export default function AdminApproveDataPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-12">
+    <div className="max-w-6xl mx-auto space-y-8">
       {/* Page Header */}
       <div>
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 text-xs font-semibold mb-2">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>Plant Knowledge Governance</span>
-        </div>
-        <h1 className="font-display text-3xl font-bold text-slate-900">
-          Knowledge Review & Approval
+        <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
+          Manage Entries
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Review operator submissions for technical rigor and safety before publishing into the live vault.
+          Review operator submissions for technical rigor and safety, or manage published entries across the knowledge vault.
         </p>
       </div>
 
@@ -350,7 +346,7 @@ export default function AdminApproveDataPage() {
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <h2 className="font-display text-xl font-bold text-slate-900 flex items-center gap-2">
+            <h2 className="font-display text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
               <Clock className="w-5 h-5 text-amber-600" />
               Pending Approval Queue
             </h2>
@@ -402,30 +398,30 @@ export default function AdminApproveDataPage() {
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[1, 2].map((i) => (
-              <div key={i} className="h-64 bg-slate-200 rounded-3xl animate-pulse" />
+              <div key={i} className="h-44 bg-slate-200 rounded-2xl animate-pulse" />
             ))}
           </div>
         ) : pendingEntries.length === 0 ? (
-          <div className="p-10 text-center bg-white rounded-3xl border border-slate-200 shadow-soft">
-            <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2 opacity-80" />
-            <h3 className="font-display text-base font-bold text-slate-800">
+          <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-soft">
+            <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+            <h3 className="font-display text-sm font-bold text-slate-800">
               All Caught Up!
             </h3>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-0.5">
               There are no pending submissions awaiting administrator review.
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {pendingEntries.map((entry) => {
               const isSelected = selectedPendingIds.includes(entry.id);
 
               return (
                 <div
                   key={entry.id}
-                  className={`bg-white rounded-3xl border transition-all p-6 shadow-soft flex flex-col justify-between ${
+                  className={`bg-white rounded-2xl border transition-all p-4 shadow-soft flex flex-col justify-between ${
                     isSelected
                       ? 'border-rose-400 ring-2 ring-rose-500/20'
                       : 'border-slate-200/90 hover:border-slate-300'
@@ -433,7 +429,7 @@ export default function AdminApproveDataPage() {
                 >
                   <div>
                     {/* Top Meta Bar */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -441,36 +437,49 @@ export default function AdminApproveDataPage() {
                           onChange={() => togglePendingSelect(entry.id)}
                           className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300"
                         />
-                        <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
+                        <span className="text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
                           {entry.machine?.name || 'General Machinery'}
                         </span>
                       </div>
 
                       {entry.is_safety_critical && (
-                        <span className="flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg">
-                          <ShieldAlert className="w-3.5 h-3.5 text-red-600" />
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
+                          <ShieldAlert className="w-3 h-3 text-red-600" />
                           Safety Critical
                         </span>
                       )}
                     </div>
 
-                    {/* Title */}
-                    <h3 className="font-display text-lg font-bold text-slate-900 mb-1">
-                      {entry.title}
-                    </h3>
+                    {/* Thumbnail + Title + Author/Date */}
+                    <div className="flex items-start gap-3 mb-2.5">
+                      {entry.thumbnail_url ? (
+                        <img
+                          src={entry.thumbnail_url}
+                          alt={entry.title}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                          <Layers className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-display text-sm font-bold text-slate-900 truncate">
+                          {entry.title}
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          By{' '}
+                          <strong className="text-slate-800">
+                            {entry.employee?.full_name || entry.author_name_cache || 'Technician'}
+                          </strong>{' '}
+                          • {new Date(entry.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
 
-                    {/* Author & Date */}
-                    <p className="text-xs text-slate-500 mb-4">
-                      By{' '}
-                      <strong className="text-slate-800">
-                        {entry.employee?.full_name || entry.author_name_cache || 'Technician'}
-                      </strong>{' '}
-                      • Submitted on {new Date(entry.created_at).toLocaleDateString()}
-                    </p>
-
-                    {/* Rendered HTML Content */}
+                    {/* Rendered Preview - Compact */}
                     <div
-                      className="p-4 rounded-2xl bg-slate-50/70 border border-slate-100 text-xs sm:text-sm text-slate-700 leading-relaxed max-h-48 overflow-y-auto tiptap-content mb-4"
+                      className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100 text-xs text-slate-600 line-clamp-3 overflow-hidden mb-3"
                       dangerouslySetInnerHTML={{
                         __html: sanitizeContent(entry.content_html),
                       }}
@@ -478,14 +487,14 @@ export default function AdminApproveDataPage() {
                   </div>
 
                   {/* Actions Bar */}
-                  <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
                     <button
                       type="button"
                       onClick={() => startEditing(entry)}
-                      className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-1"
                     >
-                      <Edit className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Edit Before Approving</span>
+                      <Edit className="w-3 h-3 text-slate-500" />
+                      <span>Edit</span>
                     </button>
 
                     <div className="flex items-center gap-2">
@@ -499,7 +508,7 @@ export default function AdminApproveDataPage() {
                             reason: '',
                           })
                         }
-                        className="px-3.5 py-1.5 rounded-xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-bold transition-colors"
+                        className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-bold transition-colors"
                       >
                         Reject
                       </button>
@@ -508,7 +517,7 @@ export default function AdminApproveDataPage() {
                         type="button"
                         onClick={() => handleApprove(entry.id)}
                         disabled={submittingAction}
-                        className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1.5"
+                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors flex items-center gap-1"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Approve</span>

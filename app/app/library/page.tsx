@@ -1,41 +1,60 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Search,
-  Layers,
   Cpu,
   Plus,
   ArrowRight,
-  ShieldAlert,
-  AlertTriangle,
   X,
   Upload,
   Edit,
   Trash2,
+  ArrowUpDown,
+  Filter,
+  Image as ImageIcon,
+  Check,
 } from 'lucide-react';
-import { Machine } from '@/lib/types';
+import { Machine, MachineStatus } from '@/lib/types';
 
-export default function LibraryPage() {
+export default function MachinesPage() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc'>('name_asc');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedDepartment, setSelectedDepartment] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [userRole, setUserRole] = useState<'employee' | 'industry'>('employee');
 
-  // Admin Add Machine Modal state
+  // Admin Add / Edit Machine Modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingMachineId, setEditingMachineId] = useState<string | null>(null);
   const [submittingMachine, setSubmittingMachine] = useState(false);
   const [machineError, setMachineError] = useState('');
-  const [newMachine, setNewMachine] = useState({
+  const [machineForm, setMachineForm] = useState<{
+    name: string;
+    category: string;
+    department: string;
+    status: MachineStatus;
+    description: string;
+    specifications: string;
+    common_issues: string;
+    safety_notes: string;
+    image_url: string;
+    gallery: string[];
+  }>({
     name: '',
     category: 'General',
+    department: 'Machining & Fabrication',
+    status: 'active',
     description: '',
     specifications: '',
     common_issues: '',
     safety_notes: '',
     image_url: '',
+    gallery: [],
   });
 
   const categories = [
@@ -49,10 +68,28 @@ export default function LibraryPage() {
     'General',
   ];
 
+  const departments = [
+    'All',
+    'Machining & Fabrication',
+    'Heavy Machining',
+    'Plant Utilities',
+    'Mechatronics & Robotics',
+    'Plant Maintenance',
+    'Operations',
+  ];
+
+  const statuses: Array<{ value: string; label: string }> = [
+    { value: 'All', label: 'All Statuses' },
+    { value: 'active', label: 'Active' },
+    { value: 'inactive', label: 'Inactive' },
+    { value: 'under_maintenance', label: 'Under Maintenance' },
+    { value: 'retired', label: 'Retired' },
+  ];
+
   useEffect(() => {
     fetchSessionRole();
     fetchMachines();
-  }, [search, selectedCategory]);
+  }, []);
 
   async function fetchSessionRole() {
     try {
@@ -68,13 +105,7 @@ export default function LibraryPage() {
 
   async function fetchMachines() {
     try {
-      let url = '/api/machines?';
-      const params = new URLSearchParams();
-      if (search.trim()) params.set('q', search.trim());
-      if (selectedCategory && selectedCategory !== 'All') params.set('category', selectedCategory);
-      url += params.toString();
-
-      const res = await fetch(url);
+      const res = await fetch('/api/machines');
       const data = await res.json();
       if (res.ok) {
         setMachines(data.machines || []);
@@ -86,37 +117,73 @@ export default function LibraryPage() {
     }
   }
 
-  async function handleCreateMachine(e: React.FormEvent) {
+  function openAddModal() {
+    setEditingMachineId(null);
+    setMachineForm({
+      name: '',
+      category: 'General',
+      department: 'Machining & Fabrication',
+      status: 'active',
+      description: '',
+      specifications: '',
+      common_issues: '',
+      safety_notes: '',
+      image_url: '',
+      gallery: [],
+    });
+    setMachineError('');
+    setIsAddModalOpen(true);
+  }
+
+  function openEditModal(machine: Machine) {
+    setEditingMachineId(machine.id);
+    setMachineForm({
+      name: machine.name,
+      category: machine.category || 'General',
+      department: machine.department || 'Machining & Fabrication',
+      status: machine.status || 'active',
+      description: machine.description || '',
+      specifications: machine.specifications || '',
+      common_issues: machine.common_issues || '',
+      safety_notes: machine.safety_notes || '',
+      image_url: machine.image_url || '',
+      gallery: machine.gallery || (machine.image_url ? [machine.image_url] : []),
+    });
+    setMachineError('');
+    setIsAddModalOpen(true);
+  }
+
+  async function handleSaveMachine(e: React.FormEvent) {
     e.preventDefault();
     setMachineError('');
-    if (!newMachine.name.trim()) {
+    if (!machineForm.name.trim()) {
       setMachineError('Machine name is required');
       return;
     }
 
     setSubmittingMachine(true);
     try {
-      const res = await fetch('/api/machines', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMachine),
-      });
+      let res;
+      if (editingMachineId) {
+        res = await fetch(`/api/machines/${editingMachineId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(machineForm),
+        });
+      } else {
+        res = await fetch('/api/machines', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(machineForm),
+        });
+      }
 
       const data = await res.json();
       if (res.ok) {
         setIsAddModalOpen(false);
-        setNewMachine({
-          name: '',
-          category: 'General',
-          description: '',
-          specifications: '',
-          common_issues: '',
-          safety_notes: '',
-          image_url: '',
-        });
         fetchMachines();
       } else {
-        setMachineError(data.error || 'Failed to create machine');
+        setMachineError(data.error || 'Failed to save machine');
       }
     } catch {
       setMachineError('Server error while saving machine');
@@ -125,57 +192,122 @@ export default function LibraryPage() {
     }
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handleGalleryUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const formData = new FormData();
+      formData.append('file', file);
 
-    try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      if (res.ok && data.url) {
-        setNewMachine((prev) => ({ ...prev, image_url: data.url }));
-      } else {
-        setMachineError(data.error || 'Image upload failed');
+      try {
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (res.ok && data.url) {
+          setMachineForm((prev) => {
+            const newGallery = [...prev.gallery, data.url];
+            return {
+              ...prev,
+              gallery: newGallery,
+              image_url: prev.image_url || data.url,
+            };
+          });
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      setMachineError('Image upload failed due to network error');
+    }
+  }
+
+  // Filtered & Sorted Machines
+  const processedMachines = useMemo(() => {
+    return machines
+      .filter((m) => {
+        // Search
+        if (search.trim()) {
+          const q = search.trim().toLowerCase();
+          const matchName = m.name.toLowerCase().includes(q);
+          const matchDesc = m.description.toLowerCase().includes(q);
+          const matchCategory = m.category.toLowerCase().includes(q);
+          if (!matchName && !matchDesc && !matchCategory) return false;
+        }
+
+        // Category filter
+        if (selectedCategory !== 'All' && m.category !== selectedCategory) return false;
+
+        // Department filter
+        if (selectedDepartment !== 'All' && m.department !== selectedDepartment) return false;
+
+        // Status filter
+        if (selectedStatus !== 'All') {
+          const mStatus = m.status || 'active';
+          if (mStatus !== selectedStatus) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
+        if (sortBy === 'name_desc') return b.name.localeCompare(a.name);
+        return 0;
+      });
+  }, [machines, search, selectedCategory, selectedDepartment, selectedStatus, sortBy]);
+
+  // Status badge styling helper
+  function renderStatusBadge(status?: MachineStatus) {
+    const st = status || 'active';
+    switch (st) {
+      case 'active':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-xs">
+            Active
+          </span>
+        );
+      case 'inactive':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-xs">
+            Inactive
+          </span>
+        );
+      case 'under_maintenance':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 shadow-xs">
+            Under Maintenance
+          </span>
+        );
+      case 'retired':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-red-100 text-red-800 border border-red-200 shadow-xs">
+            Retired
+          </span>
+        );
+      default:
+        return null;
     }
   }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Header */}
+      {/* Header (No tagline pill) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
-          <div
-            className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold mb-2 ${
-              userRole === 'industry'
-                ? 'bg-rose-50 text-rose-800'
-                : 'bg-emerald-50 text-emerald-800'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Master Equipment Register</span>
-          </div>
-          <h1 className="font-display text-3xl font-bold text-slate-900">
-            Plant Machine Library
+          <h1 className="font-display text-3xl font-extrabold text-slate-900 tracking-tight">
+            Plant Machines
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Official machine profiles, operating specs, failure symptoms, and safety baselines.
           </p>
         </div>
 
-        {/* Industry Admin "Add Machine" Button */}
+        {/* Industry Admin "Register Machine" Button */}
         {userRole === 'industry' && (
           <button
             type="button"
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={openAddModal}
             className="self-start sm:self-auto px-4 py-2.5 rounded-2xl bg-rose-600 text-white font-semibold text-xs shadow-sm hover:bg-rose-700 transition-colors flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
@@ -184,65 +316,123 @@ export default function LibraryPage() {
         )}
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                selectedCategory === cat
-                  ? userRole === 'industry'
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : 'bg-emerald-700 text-white shadow-sm'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
+      {/* FILTER & SORT BAR */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        {/* Sort & Search */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-semibold text-slate-600">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             >
-              {cat}
-            </button>
-          ))}
+              <option value="name_asc">A &rarr; Z (Name)</option>
+              <option value="name_desc">Z &rarr; A (Name)</option>
+            </select>
+          </div>
+
+          <div className="relative w-full sm:w-56">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-3.5 h-3.5" />
+            </div>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search machines..."
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-white"
+            />
+          </div>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full md:w-64">
-          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-            <Search className="w-4 h-4" />
-          </div>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search machines..."
-            className="w-full pl-10 pr-4 py-2 rounded-2xl border border-slate-200 text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 bg-white shadow-sm"
-          />
+        {/* Filters: Category, Department, Status */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Category */}
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          >
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c === 'All' ? 'All Categories' : c}
+              </option>
+            ))}
+          </select>
+
+          {/* Department */}
+          <select
+            value={selectedDepartment}
+            onChange={(e) => setSelectedDepartment(e.target.value)}
+            className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          >
+            {departments.map((d) => (
+              <option key={d} value={d}>
+                {d === 'All' ? 'All Departments' : d}
+              </option>
+            ))}
+          </select>
+
+          {/* Status */}
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          >
+            {statuses.map((st) => (
+              <option key={st.value} value={st.value}>
+                {st.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Reset button */}
+          {(selectedCategory !== 'All' ||
+            selectedDepartment !== 'All' ||
+            selectedStatus !== 'All' ||
+            search.trim()) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCategory('All');
+                setSelectedDepartment('All');
+                setSelectedStatus('All');
+                setSearch('');
+              }}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 text-xs flex items-center gap-1"
+              title="Reset all filters"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Reset</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Machine Cards Grid */}
+      {/* Machine Cards Grid (Simplified: image, name, category, and status badge ONLY) */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="h-64 bg-slate-200 rounded-3xl animate-pulse" />
           ))}
         </div>
-      ) : machines.length === 0 ? (
+      ) : processedMachines.length === 0 ? (
         <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-soft">
           <Cpu className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-          <h3 className="font-display text-lg font-bold text-slate-700">No equipment found</h3>
-          <p className="text-xs text-slate-500 mt-1">Try selecting another category or clear the search.</p>
+          <h3 className="font-display text-base font-bold text-slate-700">No equipment found</h3>
+          <p className="text-xs text-slate-500 mt-1">Try clearing your filters or search query.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {machines.map((machine) => (
-            <Link
+          {processedMachines.map((machine) => (
+            <div
               key={machine.id}
-              href={`/app/library/${machine.id}`}
               className="group bg-white rounded-3xl border border-slate-200/90 overflow-hidden shadow-soft hover:shadow-hover hover:border-slate-300 transition-all duration-200 flex flex-col justify-between"
             >
-              <div>
-                {/* Machine Card Image / Placeholder */}
+              <Link href={`/app/library/${machine.id}`} className="block">
+                {/* Machine Image */}
                 <div className="h-44 w-full bg-slate-900 relative overflow-hidden flex items-center justify-center">
                   {machine.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -253,59 +443,74 @@ export default function LibraryPage() {
                     />
                   ) : (
                     <div className="text-slate-400 flex flex-col items-center">
-                      <Cpu className="w-10 h-10 mb-1 opacity-40" />
+                      <Cpu className="w-10 h-10 mb-1 opacity-40 text-emerald-400" />
                       <span className="text-[11px] font-mono uppercase tracking-wider">
                         {machine.category}
                       </span>
                     </div>
                   )}
 
+                  {/* Status Badge overlay at top-left */}
+                  <div className="absolute top-3 left-3">
+                    {renderStatusBadge(machine.status)}
+                  </div>
+
+                  {/* Category Pill overlay at top-right */}
                   <span className="absolute top-3 right-3 px-2.5 py-1 rounded-xl text-[10px] font-bold bg-slate-900/80 backdrop-blur-md text-white border border-white/20">
                     {machine.category}
                   </span>
                 </div>
 
-                {/* Machine Details */}
-                <div className="p-5">
+                {/* Machine Name */}
+                <div className="p-5 pb-3">
                   <h3 className="font-display text-lg font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
                     {machine.name}
                   </h3>
-                  <p className="text-xs text-slate-600 line-clamp-2 mt-1.5 leading-relaxed">
-                    {machine.description}
-                  </p>
-
-                  {/* Safety Alert indicator */}
-                  {machine.safety_notes && (
-                    <div className="mt-3 p-2 rounded-xl bg-amber-50/80 border border-amber-200/60 flex items-start gap-1.5 text-[11px] text-amber-900 font-medium line-clamp-1">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                      <span className="truncate">{machine.safety_notes}</span>
-                    </div>
+                  {machine.department && (
+                    <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                      {machine.department}
+                    </p>
                   )}
                 </div>
-              </div>
+              </Link>
 
-              <div className="p-5 pt-0">
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-emerald-700 group-hover:translate-x-0.5 transition-transform">
-                  <span>View Specifications & Entries</span>
-                  <ArrowRight className="w-4 h-4" />
-                </div>
+              {/* Card Footer: View link & optional admin edit button */}
+              <div className="px-5 pb-4 pt-0 flex items-center justify-between border-t border-slate-100 mt-2">
+                <Link
+                  href={`/app/library/${machine.id}`}
+                  className="pt-2 text-xs font-semibold text-emerald-700 group-hover:translate-x-0.5 transition-transform flex items-center gap-1"
+                >
+                  <span>View Details</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+
+                {userRole === 'industry' && (
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(machine)}
+                    className="p-1.5 mt-2 rounded-xl text-slate-400 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                    title="Edit machine profile"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}
 
-      {/* ADMIN ADD MACHINE MODAL */}
+      {/* ADMIN ADD / EDIT MACHINE MODAL */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <h3 className="font-display text-xl font-bold text-slate-900">
-                  Register Machine to Library
+                  {editingMachineId ? 'Edit Plant Machine' : 'Register Machine to Vault'}
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Add plant equipment specs, failure modes, and safety guidelines.
+                  Manage technical specs, operating status, department, and gallery photos.
                 </p>
               </div>
               <button
@@ -323,7 +528,7 @@ export default function LibraryPage() {
               </div>
             )}
 
-            <form onSubmit={handleCreateMachine} className="space-y-4 mt-4">
+            <form onSubmit={handleSaveMachine} className="space-y-4 mt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -331,8 +536,8 @@ export default function LibraryPage() {
                   </label>
                   <input
                     type="text"
-                    value={newMachine.name}
-                    onChange={(e) => setNewMachine({ ...newMachine, name: e.target.value })}
+                    value={machineForm.name}
+                    onChange={(e) => setMachineForm({ ...machineForm, name: e.target.value })}
                     placeholder="e.g. Lathe #4"
                     required
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
@@ -344,13 +549,46 @@ export default function LibraryPage() {
                     Category *
                   </label>
                   <select
-                    value={newMachine.category}
-                    onChange={(e) => setNewMachine({ ...newMachine, category: e.target.value })}
+                    value={machineForm.category}
+                    onChange={(e) => setMachineForm({ ...machineForm, category: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20 bg-white"
                   >
-                    {categories.filter(c => c !== 'All').map((c) => (
+                    {categories.filter((c) => c !== 'All').map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Department
+                  </label>
+                  <select
+                    value={machineForm.department}
+                    onChange={(e) => setMachineForm({ ...machineForm, department: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20 bg-white"
+                  >
+                    {departments.filter((d) => d !== 'All').map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Operating Status
+                  </label>
+                  <select
+                    value={machineForm.status}
+                    onChange={(e) => setMachineForm({ ...machineForm, status: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20 bg-white"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="under_maintenance">Under Maintenance</option>
+                    <option value="retired">Retired</option>
                   </select>
                 </div>
               </div>
@@ -361,8 +599,8 @@ export default function LibraryPage() {
                 </label>
                 <textarea
                   rows={2}
-                  value={newMachine.description}
-                  onChange={(e) => setNewMachine({ ...newMachine, description: e.target.value })}
+                  value={machineForm.description}
+                  onChange={(e) => setMachineForm({ ...machineForm, description: e.target.value })}
                   placeholder="Primary factory purpose, bed size, or bay placement..."
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                 />
@@ -374,8 +612,8 @@ export default function LibraryPage() {
                 </label>
                 <textarea
                   rows={2}
-                  value={newMachine.specifications}
-                  onChange={(e) => setNewMachine({ ...newMachine, specifications: e.target.value })}
+                  value={machineForm.specifications}
+                  onChange={(e) => setMachineForm({ ...machineForm, specifications: e.target.value })}
                   placeholder="Dimensions, voltage, tonnage, hydraulic pressure, motor rating..."
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                 />
@@ -383,41 +621,83 @@ export default function LibraryPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Common Issues & Known Quirks
+                  Common Issues &amp; Known Quirks
                 </label>
                 <textarea
                   rows={2}
-                  value={newMachine.common_issues}
-                  onChange={(e) => setNewMachine({ ...newMachine, common_issues: e.target.value })}
+                  value={machineForm.common_issues}
+                  onChange={(e) => setMachineForm({ ...machineForm, common_issues: e.target.value })}
                   placeholder="Typical wear points, morning startup quirks, vibration frequencies..."
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1 text-red-700 flex items-center gap-1">
-                  <ShieldAlert className="w-3.5 h-3.5" />
+                <label className="block text-xs font-semibold text-slate-700 mb-1 text-red-700">
                   Mandatory Safety Notes
                 </label>
                 <textarea
                   rows={2}
-                  value={newMachine.safety_notes}
-                  onChange={(e) => setNewMachine({ ...newMachine, safety_notes: e.target.value })}
+                  value={machineForm.safety_notes}
+                  onChange={(e) => setMachineForm({ ...machineForm, safety_notes: e.target.value })}
                   placeholder="Critical interlocks, LOTO procedures, emergency stop protocols..."
                   className="w-full px-3 py-2 rounded-xl border border-red-200 bg-red-50/30 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-500/20"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Upload Machine Photo
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
-                />
+              {/* Gallery Section */}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-slate-800">
+                    Machine Photo Gallery ({machineForm.gallery.length})
+                  </label>
+                  <label className="cursor-pointer text-xs font-semibold text-rose-600 hover:text-rose-700 flex items-center gap-1">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Photos</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleGalleryUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {machineForm.gallery.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2 mt-2">
+                    {machineForm.gallery.map((url, idx) => (
+                      <div key={idx} className="relative group rounded-xl overflow-hidden h-16 border border-slate-200">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-around p-1 text-white">
+                          <button
+                            type="button"
+                            onClick={() => setMachineForm((prev) => ({ ...prev, image_url: url }))}
+                            className={`p-1 rounded ${machineForm.image_url === url ? 'text-emerald-400 font-bold' : 'text-white'}`}
+                            title="Set as main thumbnail"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMachineForm((prev) => ({
+                                ...prev,
+                                gallery: prev.gallery.filter((_, i) => i !== idx),
+                                image_url: prev.image_url === url ? prev.gallery[0] || '' : prev.image_url,
+                              }))
+                            }
+                            className="p-1 rounded text-red-400 hover:text-red-300"
+                            title="Remove photo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
@@ -433,7 +713,7 @@ export default function LibraryPage() {
                   disabled={submittingMachine}
                   className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-sm"
                 >
-                  {submittingMachine ? 'Saving...' : 'Register Equipment'}
+                  {submittingMachine ? 'Saving...' : editingMachineId ? 'Save Changes' : 'Register Equipment'}
                 </button>
               </div>
             </form>
@@ -443,4 +723,3 @@ export default function LibraryPage() {
     </div>
   );
 }
-

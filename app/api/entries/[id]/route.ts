@@ -83,6 +83,12 @@ export async function PATCH(
           : String(body.tags).split(',').map((t) => t.trim().toLowerCase())
         : existing.tags;
 
+      let finalThumbnail = body.thumbnail_url !== undefined ? body.thumbnail_url : existing.thumbnail_url;
+      if (!finalThumbnail && cleanHtml) {
+        const imgMatch = cleanHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (imgMatch && imgMatch[1]) finalThumbnail = imgMatch[1];
+      }
+
       const revision = await createEntry({
         org_id: session.orgId,
         employee_id: session.employeeId!,
@@ -93,6 +99,8 @@ export async function PATCH(
         tags: cleanTags,
         is_safety_critical: body.is_safety_critical !== undefined ? !!body.is_safety_critical : existing.is_safety_critical,
         status: 'pending',
+        thumbnail_url: finalThumbnail,
+        attachments: body.attachments !== undefined ? body.attachments : existing.attachments,
       });
 
       return NextResponse.json({
@@ -109,11 +117,20 @@ export async function PATCH(
     if (body.title !== undefined) updates.title = body.title.trim();
     if (body.machine_id !== undefined) updates.machine_id = body.machine_id || null;
     if (body.is_safety_critical !== undefined) updates.is_safety_critical = !!body.is_safety_critical;
+    if (body.thumbnail_url !== undefined) updates.thumbnail_url = body.thumbnail_url;
+    if (body.attachments !== undefined) updates.attachments = body.attachments;
 
     if (body.content_html !== undefined) {
       const clean = sanitizeContent(body.content_html);
       updates.content_html = clean;
       updates.content_text = extractPlainText(clean);
+
+      if (!updates.thumbnail_url) {
+        const imgMatch = clean.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (imgMatch && imgMatch[1]) {
+          updates.thumbnail_url = imgMatch[1];
+        }
+      }
     }
 
     if (body.tags !== undefined) {

@@ -35,13 +35,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { question } = await req.json();
+    const { question, language: preferredLang } = await req.json();
     if (!question || !question.trim()) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
 
     const cleanQuestion = question.trim();
     const isIndustry = session.role === 'industry';
+    const isTamil = preferredLang === 'ta' || /[\u0B80-\u0BFF]/.test(cleanQuestion);
 
     // 1. Retrieve top ~8 most relevant records (full-text + machine matching)
     // If industry admin, include pending entries labeled 'Unverified'
@@ -51,13 +52,26 @@ export async function POST(req: NextRequest) {
       isIndustry
     );
 
-    // If absolutely zero records or machines exist in org
-    if (entries.length === 0 && machines.length === 0) {
+    // Check for general conversational greetings or identity queries
+    const lowerQ = cleanQuestion.toLowerCase();
+    const isGreeting =
+      /^(hi|hello|hey|good morning|good afternoon|good evening|who are you|what are you|what is anubhav|வணக்கம்|யார் நீ)\b/i.test(
+        lowerQ
+      ) ||
+      lowerQ === 'hi' ||
+      lowerQ === 'hello' ||
+      lowerQ === 'who are you';
+
+    // If zero records found and not a simple greeting
+    if (entries.length === 0 && machines.length === 0 && !isGreeting) {
       await logUnansweredQuestion(session.orgId, cleanQuestion, session.name);
       return NextResponse.json({
-        answer: 'No record found. This question has been logged for an expert.',
+        answer: isTamil
+          ? 'எந்தப் பதிவும் கிடைக்கவில்லை. இந்த கேள்வி நிபுணருக்காக பதிவு செய்யப்பட்டுள்ளது.'
+          : 'No record found. This question has been logged for an expert.',
         sources: [],
         safetyNotes: [],
+        language: isTamil ? 'ta' : 'en',
       });
     }
 
@@ -76,8 +90,12 @@ export async function POST(req: NextRequest) {
 
     const prompt = `QUESTION FROM OPERATOR: "${cleanQuestion}"\n\n${contextText}`;
 
-    const systemInstruction =
-      "You are Anubhav, a factory knowledge assistant. Answer ONLY using the records provided. Cite the record IDs you used (e.g. [Record ID: ...]). If no record matches, reply exactly: 'No record found. This question has been logged for an expert.' Never guess or invent fixes. Always include any safety notes from the records. Keep answers short and practical for a new employee.";
+    const systemInstruction = `You are Anubhav, the plant knowledge vault assistant for smart manufacturing.
+1. When asked conversational greetings or "who are you" questions, answer briefly and politely introducing yourself as Anubhav, and state you are here to assist with approved factory knowledge and machine operating wisdom.
+2. For all factory, operational, troubleshooting, or machine questions: Answer ONLY using the records provided. Cite the record IDs you used (e.g. [Record ID: ...]).
+3. If no record matches a factual factory question, reply exactly: "No record found. This question has been logged for an expert." (or in Tamil if question is in Tamil: "எந்தப் பதிவும் கிடைக்கவில்லை. இந்த கேள்வி நிபுணருக்காக பதிவு செய்யப்பட்டுள்ளது."). Never guess or invent fixes.
+4. Language rule: Answer in the EXACT SAME language the user asked in. If the question is in Tamil or contains Tamil script, reply in clear, grammatically correct Tamil script (தமிழ்). If in English, reply in English.
+5. Always include any safety notes from the records. Keep answers short, practical, and clear for factory personnel.`;
 
     let rawAnswer = '';
     const apiKey = process.env.GEMINI_API_KEY;
@@ -96,49 +114,68 @@ export async function POST(req: NextRequest) {
         });
         rawAnswer = response.text || '';
       } catch (geminiErr) {
-        console.error('Gemini SDK error:', geminiErr);
-        // Graceful error handling
-        rawAnswer =
-          'We encountered a temporary connection issue while querying the AI model. Please try asking your question again in a few moments.';
+        console.error('Gemini API error in /api/ask:', geminiErr);
+        return NextResponse.json({
+          answer: 'The AI service is unavailable, please try again.',
+          sources: [],
+          safetyNotes: [],
+          language: isTamil ? 'ta' : 'en',
+          isAiError: true,
+        });
       }
     } else {
-      // Local deterministic simulated response when API key is not yet set
-      // Ensures the application remains testable and responsive
-      const matchingEntries = entries.filter((e) => {
-        const qTerms = cleanQuestion.toLowerCase().split(/\s+/);
-        return qTerms.some((t: string) => t.length > 3 && (e.title.toLowerCase().includes(t) || e.content_text.toLowerCase().includes(t)));
-      });
-
-      if (matchingEntries.length > 0) {
-        const best = matchingEntries[0];
-        rawAnswer = `${best.content_text}\n\nCited from [Record ID: ${best.id}]. Always follow standard PPE and lock-out procedures before maintenance.`;
+      // Local deterministic simulated response when API key is not yet configured
+      if (isGreeting) {
+        rawAnswer = isTamil
+          ? 'வணக்கம்! நான் அனுபவ் (Anubhav), உங்கள் தொழிற்சாலை அறிவு உதவியாளர். இயந்திர நுணுக்கங்கள் மற்றும் ஆலை பதிவுகள் பற்றி என்னிடம் கேட்கலாம்.'
+          : 'Hello! I am Anubhav, your factory knowledge assistant. I can help you with approved shop-floor procedures, machine quirks, and safety protocols.';
       } else {
-        rawAnswer = 'No record found. This question has been logged for an expert.';
+        const matchingEntries = entries.filter((e) => {
+          const qTerms = cleanQuestion.toLowerCase().split(/\s+/);
+          return qTerms.some(
+            (t: string) =>
+              t.length > 3 &&
+              (e.title.toLowerCase().includes(t) || e.content_text.toLowerCase().includes(t))
+          );
+        });
+
+        if (matchingEntries.length > 0) {
+          const best = matchingEntries[0];
+          rawAnswer = `${best.content_text}\n\nCited from [Record ID: ${best.id}]. Always follow standard PPE and lock-out procedures before maintenance.`;
+        } else {
+          rawAnswer = isTamil
+            ? 'எந்தப் பதிவும் கிடைக்கவில்லை. இந்த கேள்வி நிபுணருக்காக பதிவு செய்யப்பட்டுள்ளது.'
+            : 'No record found. This question has been logged for an expert.';
+        }
       }
     }
 
     // 3. Check for "No record found"
-    const isNotFound = rawAnswer.includes('No record found. This question has been logged for an expert.');
+    const isNotFound =
+      rawAnswer.includes('No record found. This question has been logged for an expert.') ||
+      rawAnswer.includes('எந்தப் பதிவும் கிடைக்கவில்லை');
+
     if (isNotFound) {
       await logUnansweredQuestion(session.orgId, cleanQuestion, session.name);
       return NextResponse.json({
-        answer: 'No record found. This question has been logged for an expert.',
+        answer: isTamil
+          ? 'எந்தப் பதிவும் கிடைக்கவில்லை. இந்த கேள்வி நிபுணருக்காக பதிவு செய்யப்பட்டுள்ளது.'
+          : 'No record found. This question has been logged for an expert.',
         sources: [],
         safetyNotes: [],
+        language: isTamil ? 'ta' : 'en',
       });
     }
 
     // 4. Resolve Cited Sources
-    // Match IDs cited in response, or include top scored records
     const citedEntryIds = new Set<string>();
     for (const e of entries) {
-      if (rawAnswer.includes(e.id) || entries.length === 1) {
+      if (rawAnswer.includes(e.id) || (entries.length === 1 && !isGreeting)) {
         citedEntryIds.add(e.id);
       }
     }
 
-    // If Gemini cited without exact ID format, attach matched relevant entries
-    if (citedEntryIds.size === 0 && entries.length > 0) {
+    if (citedEntryIds.size === 0 && entries.length > 0 && !isGreeting) {
       entries.slice(0, 3).forEach((e) => citedEntryIds.add(e.id));
     }
 
@@ -159,6 +196,7 @@ export async function POST(req: NextRequest) {
       answer: rawAnswer,
       sources: citedSources,
       safetyNotes: Array.from(new Set(safetyNotes)),
+      language: isTamil || /[\u0B80-\u0BFF]/.test(rawAnswer) ? 'ta' : 'en',
     });
   } catch (err: unknown) {
     console.error('Ask AI route error:', err);

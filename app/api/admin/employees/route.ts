@@ -29,19 +29,23 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { full_name, designation, department, experience_years, phone, email, bio } = body;
+    const { full_name, designation, department, experience_years, phone, email, bio, password, is_senior } = body;
 
     if (!full_name || !full_name.trim()) {
       return NextResponse.json({ error: 'Employee full name is required' }, { status: 400 });
+    }
+
+    if (password && password.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
     }
 
     // Auto-generate unique employee ID (e.g. EMP-7241)
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const employee_code = `EMP-${randomSuffix}`;
 
-    // Auto-generate temporary password (10 alphanumeric chars)
-    const tempPassword = crypto.randomBytes(5).toString('hex') + 'A!';
-    const password_hash = await hashPassword(tempPassword);
+    // Use admin-supplied password or auto-generate fallback
+    const rawPassword = password && password.trim() ? password.trim() : crypto.randomBytes(5).toString('hex') + 'A!9';
+    const password_hash = await hashPassword(rawPassword);
 
     const created = await createEmployee({
       org_id: session.orgId,
@@ -54,17 +58,19 @@ export async function POST(req: NextRequest) {
       phone: phone?.trim() || '',
       email: email?.trim() || '',
       bio: bio?.trim() || '',
+      is_senior: Boolean(is_senior),
     });
 
     if (!created) {
       return NextResponse.json({ error: 'Failed to create employee record' }, { status: 500 });
     }
 
-    // Return the plain temporary password ONCE so admin can hand it to the employee
+    // Return the created employee (never return password_hash)
+    const { password_hash: _ph, ...safeEmployee } = created;
     return NextResponse.json({
       success: true,
-      employee: created,
-      tempPassword,
+      employee: safeEmployee,
+      tempPassword: rawPassword,
     });
   } catch (err: unknown) {
     console.error('Admin create employee error:', err);

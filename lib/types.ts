@@ -5,6 +5,14 @@ export interface Organization {
   name: string;
   password_hash: string;
   created_at: string;
+  logo_url?: string | null;
+  org_code?: string | null;
+  contact_phone?: string | null;
+  org_email?: string | null;
+  industry_type?: string | null;
+  description?: string | null;
+  admin_name?: string | null;
+  address?: string | null;
 }
 
 export interface Employee {
@@ -22,7 +30,11 @@ export interface Employee {
   bio: string;
   avatar_url: string;
   created_at: string;
+  is_senior?: boolean;
+  status?: 'active' | 'suspended';
 }
+
+export type MachineStatus = 'active' | 'inactive' | 'under_maintenance' | 'retired';
 
 export interface Machine {
   id: string;
@@ -35,9 +47,19 @@ export interface Machine {
   common_issues: string;
   safety_notes: string;
   updated_at: string;
+  status?: MachineStatus;
+  department?: string | null;
+  gallery?: string[];
 }
 
 export type EntryStatus = 'pending' | 'approved' | 'rejected';
+
+export interface EntryAttachment {
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+}
 
 export interface Entry {
   id: string;
@@ -55,6 +77,8 @@ export interface Entry {
   created_at: string;
   updated_at: string;
   approved_at: string | null;
+  thumbnail_url?: string | null;
+  attachments?: EntryAttachment[];
   
   // Joined fields for display
   employee?: {
@@ -62,12 +86,15 @@ export interface Entry {
     full_name: string;
     designation: string;
     avatar_url: string;
+    is_senior?: boolean;
   } | null;
   machine?: {
     id: string;
     name: string;
     category: string;
     safety_notes?: string;
+    status?: MachineStatus;
+    department?: string | null;
   } | null;
 }
 
