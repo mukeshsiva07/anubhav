@@ -626,6 +626,136 @@ export async function deleteEntry(id: string): Promise<boolean> {
 // -----------------------------------------------------------------------------
 // AI Retrieval & Search
 // -----------------------------------------------------------------------------
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[#.,\/#!$%\^&\*;:{}=\-_`~()?"'\[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function levenshteinDistance(s1: string, s2: string): number {
+  const m = s1.length;
+  const n = s2.length;
+  const dp: number[][] = [];
+  for (let i = 0; i <= m; i++) dp[i] = [i];
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (s1[i - 1] === s2[j - 1] ? 0 : 1)
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function wordMatches(qw: string, mw: string): boolean {
+  if (qw === mw) return true;
+  if (qw.length >= 5 && mw.length >= 5) {
+    return levenshteinDistance(qw, mw) <= 2;
+  }
+  if (qw.length === 4 && mw.length === 4) {
+    return levenshteinDistance(qw, mw) <= 1;
+  }
+  return false;
+}
+
+function findMatchingMachine(allMachines: Machine[], question: string): Machine | null {
+  const normQ = normalizeText(question);
+  const qWords = normQ.split(' ').filter(Boolean);
+
+  let bestMachine: Machine | null = null;
+  let highestScore = 0;
+
+  for (const m of allMachines) {
+    const normM = normalizeText(m.name);
+    const mWords = normM.split(' ').filter(Boolean);
+
+    let score = 0;
+
+    // 1. Check contiguous n-gram matching in question
+    for (let len = mWords.length; len >= 2; len--) {
+      for (let mStart = 0; mStart <= mWords.length - len; mStart++) {
+        const mSub = mWords.slice(mStart, mStart + len);
+        for (let qStart = 0; qStart <= qWords.length - len; qStart++) {
+          const qSub = qWords.slice(qStart, qStart + len);
+          let allMatch = true;
+          for (let i = 0; i < len; i++) {
+            if (!wordMatches(qSub[i], mSub[i])) {
+              allMatch = false;
+              break;
+            }
+          }
+          if (allMatch) {
+            score = Math.max(score, 50 * len);
+          }
+        }
+      }
+    }
+
+    // 2. Check distinctive single words
+    const distinctiveWords = mWords.filter(
+      (w) =>
+        w.length >= 3 &&
+        !['industrial', 'plant', 'unit', 'the', 'and', 'for'].includes(w) &&
+        !/^\d+$/.test(w) &&
+        w !== 'a'
+    );
+
+    let distinctiveMatches = 0;
+    for (const mw of distinctiveWords) {
+      if (qWords.some((qw) => wordMatches(qw, mw))) {
+        distinctiveMatches++;
+      }
+    }
+
+    if (distinctiveMatches > 0) {
+      const ratio = distinctiveMatches / distinctiveWords.length;
+      score = Math.max(score, 25 * distinctiveMatches + (ratio === 1 ? 25 : 0));
+
+      const identifiers = mWords.filter((w) => /^\d+$/.test(w) || w.length === 1);
+      for (const idf of identifiers) {
+        if (qWords.includes(idf)) {
+          score += 15;
+        }
+      }
+    }
+
+    if (score > highestScore) {
+      highestScore = score;
+      bestMachine = m;
+    }
+  }
+
+  if (highestScore >= 20) {
+    return bestMachine;
+  }
+  return null;
+}
+
+const STOP_WORDS = new Set([
+  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'aren\'t',
+  'as', 'at', 'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by',
+  'can', 'can\'t', 'cannot', 'could', 'couldn\'t', 'did', 'didn\'t', 'do', 'does', 'doesn\'t', 'doing',
+  'don\'t', 'down', 'during', 'each', 'few', 'fix', 'fixes', 'fixing', 'fixed', 'for', 'from', 'further',
+  'had', 'hadn\'t', 'has', 'hasn\'t', 'have', 'haven\'t', 'having', 'he', 'he\'d', 'he\'ll', 'he\'s',
+  'help', 'her', 'here', 'here\'s', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'how\'s', 'i',
+  'i\'d', 'i\'ll', 'i\'m', 'i\'ve', 'if', 'in', 'into', 'is', 'isn\'t', 'it', 'it\'s', 'its', 'itself',
+  'just', 'know', 'let\'s', 'me', 'more', 'most', 'mustn\'t', 'my', 'myself', 'no', 'nor', 'not', 'now',
+  'of', 'off', 'on', 'once', 'only', 'or', 'other', 'ought', 'our', 'ours', 'ourselves', 'out', 'over',
+  'own', 'please', 'problem', 'problems', 'same', 'shan\'t', 'she', 'she\'d', 'she\'ll', 'she\'s',
+  'should', 'shouldn\'t', 'so', 'some', 'such', 'tell', 'than', 'that', 'that\'s', 'the', 'their',
+  'theirs', 'them', 'themselves', 'then', 'there', 'there\'s', 'these', 'they', 'they\'d', 'they\'ll',
+  'they\'re', 'they\'ve', 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up', 'very',
+  'was', 'wasn\'t', 'we', 'we\'d', 'we\'ll', 'we\'re', 'we\'ve', 'were', 'weren\'t', 'what', 'what\'s',
+  'when', 'when\'s', 'where', 'where\'s', 'which', 'while', 'who', 'who\'s', 'whom', 'why', 'why\'s',
+  'with', 'won\'t', 'work', 'works', 'working', 'would', 'wouldn\'t', 'you', 'you\'d', 'you\'ll',
+  'you\'re', 'you\'ve', 'your', 'yours', 'yourself', 'yourselves'
+]);
+
 export async function searchRelevantRecordsForAI(
   orgId: string,
   queryText: string,
@@ -633,27 +763,62 @@ export async function searchRelevantRecordsForAI(
 ): Promise<{
   entries: Entry[];
   machines: Machine[];
+  matchedMachine: Machine | null;
 }> {
   const supabase = getSupabaseAdmin();
-  const cleanQuery = queryText.trim();
-  const terms = cleanQuery
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(t => t.length > 2);
 
-  // 1. Fetch machines in the org to match against
+  // 1. Machine matching first
   const { data: allMachines } = await supabase
     .from('machines')
     .select('*')
     .eq('org_id', orgId);
 
-  const matchedMachines = (allMachines || []).filter(m => {
-    const combined = `${m.name} ${m.category} ${m.description} ${m.specifications} ${m.common_issues} ${m.safety_notes}`.toLowerCase();
-    return terms.some(t => combined.includes(t)) || combined.includes(cleanQuery.toLowerCase());
-  });
+  const matchedMachine = findMatchingMachine(allMachines || [], queryText);
 
-  // 2. Fetch candidate entries
+  if (matchedMachine) {
+    let entryQuery = supabase
+      .from('entries')
+      .select(`
+        *,
+        employee:employees(id, full_name, designation, avatar_url),
+        machine:machines(id, name, category, safety_notes)
+      `)
+      .eq('org_id', orgId)
+      .eq('machine_id', matchedMachine.id);
+
+    if (!includePending) {
+      entryQuery = entryQuery.eq('status', 'approved');
+    } else {
+      entryQuery = entryQuery.in('status', ['approved', 'pending']);
+    }
+
+    const { data: machineEntries, error } = await entryQuery
+      .order('created_at', { ascending: false })
+      .limit(8);
+
+    if (error) {
+      console.error('Error fetching entries for matched machine:', error);
+    }
+
+    return {
+      entries: machineEntries || [],
+      machines: [matchedMachine],
+      matchedMachine,
+    };
+  }
+
+  // 2. Keyword search for questions with no machine match
+  const rawWords = normalizeText(queryText).split(' ').filter(Boolean);
+  const meaningfulWords = rawWords.filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+
+  if (meaningfulWords.length === 0) {
+    return {
+      entries: [],
+      machines: [],
+      matchedMachine: null,
+    };
+  }
+
   let entryQuery = supabase
     .from('entries')
     .select(`
@@ -669,57 +834,46 @@ export async function searchRelevantRecordsForAI(
     entryQuery = entryQuery.in('status', ['approved', 'pending']);
   }
 
-  const { data: allCandidates, error } = await entryQuery;
-  if (error || !allCandidates) {
-    console.error('Error retrieving candidate entries for AI:', error);
-    return { entries: [], machines: matchedMachines.slice(0, 3) };
+  const orConditions = meaningfulWords
+    .flatMap((w) => [`title.ilike.%${w}%`, `content_text.ilike.%${w}%`])
+    .join(',');
+
+  const { data: candidates, error } = await entryQuery.or(orConditions);
+
+  if (error || !candidates || candidates.length === 0) {
+    return {
+      entries: [],
+      machines: [],
+      matchedMachine: null,
+    };
   }
 
-  // Score candidates based on term frequency, machine match, title match, safety critical
-  const matchedMachineIds = new Set(matchedMachines.map(m => m.id));
-  const scoredEntries = allCandidates.map(entry => {
-    let score = 0;
-    const titleLower = (entry.title || '').toLowerCase();
-    const contentLower = (entry.content_text || '').toLowerCase();
-    const tagsLower = (entry.tags || []).join(' ').toLowerCase();
-
-    // Exact query bonus
-    if (contentLower.includes(cleanQuery.toLowerCase())) score += 5;
-    if (titleLower.includes(cleanQuery.toLowerCase())) score += 8;
-
-    // Term matches
-    for (const term of terms) {
-      if (titleLower.includes(term)) score += 3;
-      if (tagsLower.includes(term)) score += 2;
-      if (contentLower.includes(term)) score += 1;
+  // Rank by number of matching words
+  const scoredEntries = candidates.map((entry) => {
+    const haystack = `${entry.title || ''} ${entry.content_text || ''} ${(entry.tags || []).join(' ')}`.toLowerCase();
+    let matchCount = 0;
+    for (const word of meaningfulWords) {
+      if (haystack.includes(word)) {
+        matchCount++;
+      }
     }
-
-    // Machine match bonus
-    if (entry.machine_id && matchedMachineIds.has(entry.machine_id)) {
-      score += 4;
-    }
-
-    // Safety critical importance
-    if (entry.is_safety_critical) {
-      score += 1;
-    }
-
-    return { entry, score };
+    return { entry, matchCount };
   });
 
-  // Sort descending by score, take top ~8
-  scoredEntries.sort((a, b) => b.score - a.score);
   const topEntries = scoredEntries
-    .filter(item => item.score > 0)
+    .filter((item) => item.matchCount > 0)
+    .sort(
+      (a, b) =>
+        b.matchCount - a.matchCount ||
+        new Date(b.entry.created_at).getTime() - new Date(a.entry.created_at).getTime()
+    )
     .slice(0, 8)
-    .map(item => item.entry);
-
-  // If no term score matched but entries exist, return up to 4 recent approved entries
-  const finalEntries = topEntries.length > 0 ? topEntries : allCandidates.slice(0, 4);
+    .map((item) => item.entry);
 
   return {
-    entries: finalEntries,
-    machines: matchedMachines.slice(0, 4),
+    entries: topEntries,
+    machines: [],
+    matchedMachine: null,
   };
 }
 
