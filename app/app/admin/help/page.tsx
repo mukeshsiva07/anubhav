@@ -31,7 +31,7 @@ export default function AdminHelpPage() {
       icon: CheckCircle2,
       color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
       description:
-        'Technicians submit field notes, setup steps, and troubleshooting tips. Every entry sits in the Pending Approval Queue until verified by a plant admin.',
+        'Technicians submit field notes, setup steps, and troubleshooting tips. Every entry sits in the Pending Approval Queue until verified by an admin.',
       steps: [
         'Navigate to Manage Entries from the sidebar.',
         'Review the technician author, associated machine, and safety flags.',
@@ -45,7 +45,7 @@ export default function AdminHelpPage() {
       icon: Layers,
       color: 'text-rose-600 bg-rose-50 border-rose-200',
       description:
-        'During high-volume plant shifts, you can batch process entries without reviewing each card individually.',
+        'During high-volume shifts, you can batch process entries without reviewing each card individually.',
       steps: [
         'Use the checkbox on each card or click "Select All".',
         'Click "Approve Selected" to publish all selected submissions at once.',
@@ -57,7 +57,7 @@ export default function AdminHelpPage() {
       icon: Users,
       color: 'text-blue-600 bg-blue-50 border-blue-200',
       description:
-        'Control plant personnel authorization, system login credentials, and Senior / Verified endorsements.',
+        'Control personnel authorization, system login credentials, and Senior / Verified endorsements.',
       steps: [
         'Add New Employee: Supply technician details and set a strong password (minimum 8 characters) or click "Generate".',
         'Senior / Verified Toggle: Mark seasoned operators (10+ years or designated leads) to display a verified credentials badge.',
@@ -83,12 +83,12 @@ export default function AdminHelpPage() {
       icon: Building,
       color: 'text-amber-600 bg-amber-50 border-amber-200',
       description:
-        'Configure plant identity, administrative contact points, official plant logo, and factory classification.',
+        'Configure identity, administrative contact points, official logo, and factory classification.',
       steps: [
         'Click your profile avatar at the top right and select "Industry Profile".',
-        'Update plant name, official email, phone hotline, and facility address.',
+        'Update name, official email, phone hotline, and facility address.',
         'Upload your factory or enterprise logo to brand the portal.',
-        'Your plant Organization Code (e.g., ORG-XXXXXX) is read-only and links all technician accounts to your workspace.',
+        'Your Organization Code (e.g., ORG-XXXXXX) is read-only and links all technician accounts to your workspace.',
       ],
     },
     {
@@ -96,7 +96,7 @@ export default function AdminHelpPage() {
       icon: MessageSquare,
       color: 'text-rose-600 bg-rose-50 border-rose-200',
       description:
-        'Anubhav adheres to strict zero-hallucination standards. When a worker asks a question that does not match verified factory records, the query is logged for plant experts.',
+        'Anubhav adheres to strict zero-hallucination standards. When a worker asks a question that does not match verified factory records, the query is logged for experts.',
       steps: [
         'When workers receive "No record found. This question has been logged for an expert", the knowledge gap is recorded in the audit trail.',
         'Review logged inquiries to identify missing operating procedures or unrecorded machine quirks.',
@@ -135,7 +135,7 @@ export default function AdminHelpPage() {
       category: 'Passwords',
       question: 'Can employees change their own passwords?',
       answer:
-        'To prevent unauthorized credential changes on shared plant terminals, password changes are managed directly by plant administrators from the Manage Factory Employees console.',
+        'To prevent unauthorized credential changes on shared terminals, password changes are managed directly by administrators from the Manage Factory Employees console.',
     },
   ];
 
@@ -144,10 +144,10 @@ export default function AdminHelpPage() {
       {/* Header */}
       <div>
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
-          Plant Administration Guide &amp; Help Desk
+          Administration Guide &amp; Help Desk
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Comprehensive manual for plant managers and system administrators governing the Anubhav Knowledge Vault.
+          Comprehensive manual for managers and system administrators governing the Anubhav Knowledge Vault.
         </p>
       </div>
 

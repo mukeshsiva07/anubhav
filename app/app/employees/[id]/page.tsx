@@ -185,7 +185,7 @@ export default function EmployeeDetailPage({
           <div>
             <h2 className="font-display text-xl font-bold text-slate-900 flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              Approved Shop-Floor Entries ({entries.length})
+              Approved Entries ({entries.length})
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Verified institutional procedures authored by this specialist.

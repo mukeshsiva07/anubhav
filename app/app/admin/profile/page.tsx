@@ -108,7 +108,7 @@ export default function IndustryProfilePage() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setError('Only image files (PNG, JPG, WebP) are allowed for plant logo');
+      setError('Only image files (PNG, JPG, WebP) are allowed for logo');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -175,7 +175,7 @@ export default function IndustryProfilePage() {
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
     if (!formData.name.trim()) {
-      setError('Industry/Plant name is required');
+      setError('Industry name is required');
       return;
     }
 
@@ -229,7 +229,7 @@ export default function IndustryProfilePage() {
             Industry Profile
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Plant identity, facility classification, enterprise contact details, and organization access code.
+            Industry identity, facility classification, enterprise contact details, and organization access code.
           </p>
         </div>
 
@@ -414,10 +414,10 @@ export default function IndustryProfilePage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Plant Administrator Name */}
+              {/* Administrator Name */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Primary Plant Administrator
+                  Primary Administrator
                 </label>
                 {editing ? (
                   <input
@@ -438,7 +438,7 @@ export default function IndustryProfilePage() {
               {/* Official Phone */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Plant Hotline / Contact Phone
+                  Hotline / Contact Phone
                 </label>
                 {editing ? (
                   <input
@@ -461,14 +461,14 @@ export default function IndustryProfilePage() {
               {/* Org Email */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Official Plant Email
+                  Official Email
                 </label>
                 {editing ? (
                   <input
                     type="email"
                     value={formData.org_email}
                     onChange={(e) => setFormData({ ...formData, org_email: e.target.value })}
-                    placeholder="contact@plant.internal"
+                    placeholder="contact@company.internal"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                   />
                 ) : (
@@ -482,7 +482,7 @@ export default function IndustryProfilePage() {
               {/* Physical Address */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Physical Plant Facility Address
+                  Physical Facility Address
                 </label>
                 {editing ? (
                   <input
@@ -504,7 +504,7 @@ export default function IndustryProfilePage() {
             {/* Description */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Plant Overview &amp; Knowledge Scope
+                Overview &amp; Knowledge Scope
               </label>
               {editing ? (
                 <textarea
@@ -516,7 +516,7 @@ export default function IndustryProfilePage() {
                 />
               ) : (
                 <p className="text-xs text-slate-700 leading-relaxed py-1 bg-slate-50/70 p-3 rounded-2xl border border-slate-100">
-                  {org?.description || 'No description provided for this plant facility.'}
+                  {org?.description || 'No description provided for this facility.'}
                 </p>
               )}
             </div>

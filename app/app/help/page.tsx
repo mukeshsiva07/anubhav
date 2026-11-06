@@ -65,9 +65,6 @@ export default function HelpPage() {
         <h1 className="font-display text-3xl font-bold text-slate-900">
           How to Use Anubhav
         </h1>
-        <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          A quick guide to preserving institutional memory and getting zero-hallucination answers on the floor.
-        </p>
       </div>
 
       {/* 3 Step Interactive Workflow Cards */}
@@ -91,7 +88,7 @@ export default function HelpPage() {
           </div>
           <span className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">Step 2</span>
           <h3 className="font-display text-base font-bold text-slate-900 mt-1 mb-2">
-            Plant Admin Review
+            Admin Review
           </h3>
           <p className="text-xs text-slate-600 leading-relaxed">
             The plant engineering leadership reviews your entry for technical validity, safety interlocks, and PPE protocols before granting live approval.
@@ -177,7 +174,7 @@ export default function HelpPage() {
           </div>
           <div className="flex items-center gap-2 bg-slate-800 px-3.5 py-2 rounded-xl text-slate-200 border border-slate-700">
             <Phone className="w-4 h-4 text-emerald-400" />
-            <span>Ext. #4401 (Safety Cell)</span>
+            <span>0413-2238121</span>
           </div>
         </div>
       </div>

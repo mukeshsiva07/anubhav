@@ -122,7 +122,7 @@ export default function EmployeeHomePage() {
             </span>
           </div>
           <h1 className="font-display text-3xl font-extrabold text-slate-900 tracking-tight">
-            Plant Knowledge Hub
+            Knowledge Hub
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Verified institutional memory, operating nuances, and real shop-floor expertise.
@@ -143,7 +143,7 @@ export default function EmployeeHomePage() {
             className="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-2 shadow-sm transition-all"
           >
             <FileEdit className="w-3.5 h-3.5" />
-            <span>Record Wisdom</span>
+            <span>Record Entries</span>
           </Link>
         </div>
       </div>
@@ -340,7 +340,7 @@ export default function EmployeeHomePage() {
               <Sparkles className="w-5 h-5" />
             </div>
             <h3 className="font-display text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
-              Grounded AI Assistant
+              AI Assistant
             </h3>
             <p className="text-xs text-slate-500 mt-1">
               Ask questions in English or Tamil. Zero hallucinations, 100% cited from factory logs.
@@ -380,7 +380,7 @@ export default function EmployeeHomePage() {
               <Cpu className="w-5 h-5" />
             </div>
             <h3 className="font-display text-base font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
-              Plant Machines
+              Machines
             </h3>
             <p className="text-xs text-slate-500 mt-1">
               Inspect technical specifications, operating quirks, and department equipment.

@@ -292,7 +292,7 @@ export default function AskAiPage() {
             Ask Anubhav
           </h1>
           <p className="text-xs text-slate-500">
-            Ask questions in English or Tamil about machine quirks, troubleshooting, or plant procedures.
+            Ask questions in English or Tamil about machine quirks, troubleshooting, or procedures.
           </p>
         </div>
 
@@ -342,7 +342,7 @@ export default function AskAiPage() {
               Ask Any Factory Question
             </h3>
             <p className="text-xs sm:text-sm text-slate-500 max-w-md">
-              Type or tap the mic to speak in English or Tamil. Responses are drawn directly from approved plant records.
+              Type or tap the mic to speak in English or Tamil. Responses are drawn directly from approved records.
             </p>
           </div>
         ) : (
